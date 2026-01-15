@@ -5,7 +5,6 @@ class FirestoreService {
   static final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   static final FirebaseAuth _auth = FirebaseAuth.instance;
 
-  // Ustvari userja če ne obstaja
   static Future<void> createUserIfNotExists() async {
     final user = _auth.currentUser;
     if (user == null) return;
@@ -49,7 +48,6 @@ class FirestoreService {
     }
   }
 
-  // Shrani rezultat solo igre
   static Future<void> saveSoloGameResult({
     required int correct,
     required int total,
@@ -65,7 +63,6 @@ class FirestoreService {
       final userRef = _firestore.collection('users').doc(user.uid);
       final gameRef = _firestore.collection('games').doc();
 
-      // Preberi trenutne vrednosti
       final userDoc = await userRef.get();
       if (!userDoc.exists) {
         print('❌ User document not found, creating...');
@@ -82,14 +79,12 @@ class FirestoreService {
       final int currentSoloGames =
           (userData['gamesPlayed'] as Map<String, dynamic>?)?['solo'] ?? 0;
 
-      // Izračunaj nove vrednosti
       final int newTotalCorrect = currentTotalCorrect + correct;
       final int newTotalQuestions = currentTotalQuestions + total;
       final double newAverageAccuracy = (newTotalQuestions == 0)
           ? 0.0
           : (newTotalCorrect / newTotalQuestions * 100);
 
-      // Shrani igro v history
       await gameRef.set({
         'userId': user.uid,
         'username': user.displayName ?? user.email?.split('@')[0],
@@ -102,7 +97,6 @@ class FirestoreService {
         'date': DateTime.now().toIso8601String(),
       });
 
-      // Posodobi user statistiko - UPORABI FieldValue.increment za pravilno štetje
       await userRef.update({
         'points': FieldValue.increment(score),
         'totalGames': FieldValue.increment(1),
@@ -113,7 +107,6 @@ class FirestoreService {
         'gamesPlayed.solo': FieldValue.increment(1),
       });
 
-      // Posodobi bestScore če je potrebno
       if (score > currentBestScore) {
         await userRef.update({'bestScore': score});
       }
@@ -229,7 +222,6 @@ class FirestoreService {
         'multiplayerStats.winRate': newWinRate,
       });
 
-      // Posodobi bestScore če je potrebno
       if (yourScore > (userData?['bestScore'] ?? 0)) {
         await userRef.update({'bestScore': yourScore});
       }

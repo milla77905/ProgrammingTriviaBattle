@@ -92,18 +92,15 @@ class _LobbyScreenState extends State<LobbyScreen> with WidgetsBindingObserver {
     }
   }
 
-  // Popravljena metoda - sprejme podatke kot parameter
   bool _canHostStartGame(Map<String, dynamic> data) {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return false;
 
     final players = Map<String, dynamic>.from(data['players'] ?? {});
 
-    // Preveri če je host
     final isHost = data['hostId'] == user.uid;
     if (!isHost) return false;
 
-    // Preveri če so vsi igralci ready
     bool allReady = true;
     for (final player in players.values) {
       if ((player as Map)['ready'] != true) {
@@ -228,7 +225,6 @@ class _LobbyScreenState extends State<LobbyScreen> with WidgetsBindingObserver {
     );
   }
 
-  // Shranimo snapshot podatke za dostop v metodah
   Map<String, dynamic>? snapshotData;
 
   @override
@@ -255,12 +251,11 @@ class _LobbyScreenState extends State<LobbyScreen> with WidgetsBindingObserver {
           }
 
           final data = snapshot.data!.data() as Map<String, dynamic>;
-          snapshotData = data; // Shrani podatke za dostop v metodah
+          snapshotData = data; 
           final status = data['status'] ?? 'waiting';
           final players = Map<String, dynamic>.from(data['players'] ?? {});
           final isHost = data['hostId'] == user?.uid;
 
-          // Če igra že teče → preusmeri v MultiplayerGame
           if (status == 'playing') {
             WidgetsBinding.instance.addPostFrameCallback((_) {
               if (mounted) {
@@ -276,7 +271,6 @@ class _LobbyScreenState extends State<LobbyScreen> with WidgetsBindingObserver {
             return _buildLoadingScreen();
           }
 
-          // Sinhroniziraj ready status
           if (user != null && players.containsKey(user.uid)) {
             final currentPlayer = players[user.uid];
             final serverReady = currentPlayer['ready'] ?? false;
@@ -287,7 +281,6 @@ class _LobbyScreenState extends State<LobbyScreen> with WidgetsBindingObserver {
             }
           }
 
-          // Preveri če lahko host začne igro
           final canStartGame = _canHostStartGame(data);
 
           return Scaffold(
@@ -302,7 +295,6 @@ class _LobbyScreenState extends State<LobbyScreen> with WidgetsBindingObserver {
               padding: const EdgeInsets.all(16),
               child: Column(
                 children: [
-                  // Lobby info
                   Card(
                     elevation: 2,
                     child: Padding(
@@ -344,7 +336,6 @@ class _LobbyScreenState extends State<LobbyScreen> with WidgetsBindingObserver {
 
                   const SizedBox(height: 24),
 
-                  // Seznam igralcev
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -429,7 +420,6 @@ class _LobbyScreenState extends State<LobbyScreen> with WidgetsBindingObserver {
 
                   const SizedBox(height: 16),
 
-                  // Gumbi
                   if (!isHost)
                     SizedBox(
                       width: double.infinity,
