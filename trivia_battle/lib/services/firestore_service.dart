@@ -129,7 +129,44 @@ class FirestoreService {
     }
   }
 
-  // Shrani multiplayer rezultat
+  static Stream<QuerySnapshot> getActiveLobbies({
+    int? minPlayers,
+    int? maxPlayers,
+  }) {
+    Query query = _firestore
+        .collection('lobbies')
+        .where('status', isEqualTo: 'waiting')
+        .orderBy('createdAt', descending: true);
+
+    if (minPlayers != null) {
+      query = query.where('currentPlayers', isGreaterThanOrEqualTo: minPlayers);
+    }
+    if (maxPlayers != null) {
+      query = query.where('maxPlayers', isLessThanOrEqualTo: maxPlayers);
+    }
+
+    return query.snapshots();
+  }
+
+  static Stream<QuerySnapshot> getOtherLobbies({
+    int? minPlayers,
+    int? maxPlayers,
+  }) {
+    Query query = _firestore
+        .collection('lobbies')
+        .where('status', isNotEqualTo: 'waiting')
+        .orderBy('createdAt', descending: true);
+
+    if (minPlayers != null) {
+      query = query.where('currentPlayers', isGreaterThanOrEqualTo: minPlayers);
+    }
+    if (maxPlayers != null) {
+      query = query.where('maxPlayers', isLessThanOrEqualTo: maxPlayers);
+    }
+
+    return query.snapshots();
+  }
+
   static Future<void> saveMultiplayerGameResult({
     required String lobbyId,
     required int yourScore,
@@ -154,47 +191,253 @@ class FirestoreService {
         'timestamp': FieldValue.serverTimestamp(),
       });
 
-      // Posodobi multiplayer statistiko
       final userDoc = await userRef.get();
       final Map<String, dynamic>? userData = userDoc.data();
-
-      final Map<String, dynamic> multiplayerStats =
-          userData?['multiplayerStats'] ??
-              {
-                'wins': 0,
-                'losses': 0,
-                'gamesPlayed': 0,
-                'totalScore': 0,
-                'winRate': 0.0,
-              };
-
-      final int newWins = multiplayerStats['wins'] + (won ? 1 : 0);
-      final int newLosses = multiplayerStats['losses'] + (won ? 0 : 1);
-      final int newGamesPlayed = multiplayerStats['gamesPlayed'] + 1;
-      final double newWinRate =
-          newGamesPlayed == 0 ? 0.0 : (newWins / newGamesPlayed * 100);
 
       await userRef.update({
         'points': FieldValue.increment(yourScore),
         'totalGames': FieldValue.increment(1),
         'lastGamePlayed': FieldValue.serverTimestamp(),
         'gamesPlayed.multiplayer': FieldValue.increment(1),
+      });
+
+      final multiplayerStats = userData?['multiplayerStats'] ??
+          {
+            'wins': 0,
+            'losses': 0,
+            'gamesPlayed': 0,
+            'totalScore': 0,
+            'winRate': 0.0,
+          };
+
+      final int newWins =
+          (multiplayerStats['wins'] as int? ?? 0) + (won ? 1 : 0);
+      final int newLosses =
+          (multiplayerStats['losses'] as int? ?? 0) + (won ? 0 : 1);
+      final int newGamesPlayed =
+          (multiplayerStats['gamesPlayed'] as int? ?? 0) + 1;
+      final int newTotalScore =
+          (multiplayerStats['totalScore'] as int? ?? 0) + yourScore;
+      final double newWinRate =
+          newGamesPlayed == 0 ? 0.0 : (newWins / newGamesPlayed * 100);
+
+      await userRef.update({
         'multiplayerStats.wins': newWins,
         'multiplayerStats.losses': newLosses,
         'multiplayerStats.gamesPlayed': newGamesPlayed,
-        'multiplayerStats.totalScore': FieldValue.increment(yourScore),
+        'multiplayerStats.totalScore': newTotalScore,
         'multiplayerStats.winRate': newWinRate,
-        'bestScore': yourScore > (userData?['bestScore'] ?? 0)
-            ? yourScore
-            : FieldValue.increment(0),
       });
 
-      print(
-          '✅ Multiplayer game saved: You ${won ? 'won' : 'lost'} with $yourScore points');
+      // Posodobi bestScore če je potrebno
+      if (yourScore > (userData?['bestScore'] ?? 0)) {
+        await userRef.update({'bestScore': yourScore});
+      }
+
+      print('✅ Multiplayer game saved. Won: $won, Score: $yourScore');
     } catch (e) {
       print('❌ Error saving multiplayer game: $e');
-      rethrow;
     }
+  }
+
+  // LOBBY METODE
+
+  // Ustvari nov lobby z izbiro števila igralcev
+  static Future<String> createLobby(String lobbyName, int maxPlayers) async {
+    final user = _auth.currentUser;
+    if (user == null) throw Exception('No user logged in');
+
+    // Preveri veljavnost števila igralcev
+    if (maxPlayers < 2 || maxPlayers > 8) {
+      throw Exception('Število igralcev mora biti med 2 in 8');
+    }
+
+    final lobbyRef = _firestore.collection('lobbies').doc();
+
+    final lobbyData = {
+      'id': lobbyRef.id,
+      'name': lobbyName,
+      'hostId': user.uid,
+      'hostName': user.displayName ?? 'Unknown Player',
+      'maxPlayers': maxPlayers,
+      'currentPlayers': 1,
+      'status': 'waiting',
+      'players': {
+        user.uid: {
+          'uid': user.uid,
+          'name': user.displayName ?? 'Unknown Player',
+          'score': 0,
+          'ready': true,
+          'joinedAt': FieldValue.serverTimestamp(),
+        }
+      },
+      'createdAt': FieldValue.serverTimestamp(),
+      'currentQuestion': 0,
+      'questions': [],
+      'gameStarted': false,
+      'roundDuration': 30,
+    };
+
+    await lobbyRef.set(lobbyData);
+    return lobbyRef.id;
+  }
+
+  // Pridruži se lobbyju z transaction
+  static Future<void> joinLobby(String lobbyId) async {
+    final user = _auth.currentUser;
+    if (user == null) throw Exception('No user logged in');
+
+    final lobbyRef = _firestore.collection('lobbies').doc(lobbyId);
+
+    return _firestore.runTransaction((transaction) async {
+      final snapshot = await transaction.get(lobbyRef);
+      if (!snapshot.exists) throw Exception('Lobby ne obstaja');
+
+      final data = snapshot.data() as Map<String, dynamic>;
+      final currentPlayers = data['currentPlayers'] ?? 0;
+      final maxPlayers = data['maxPlayers'] ?? 4;
+      final status = data['status'] ?? 'waiting';
+      final players = Map<String, dynamic>.from(data['players'] ?? {});
+
+      // Preveri če je lobby poln
+      if (currentPlayers >= maxPlayers) {
+        throw Exception('Lobby je poln');
+      }
+
+      // Preveri če je igra že v teku
+      if (status != 'waiting') {
+        throw Exception('Igra je že v teku');
+      }
+
+      // Preveri če je igralec že v lobbyju
+      if (players.containsKey(user.uid)) {
+        throw Exception('Že ste v tem lobbyju');
+      }
+
+      // Dodaj igralca
+      transaction.update(lobbyRef, {
+        'currentPlayers': FieldValue.increment(1),
+        'players.${user.uid}': {
+          'uid': user.uid,
+          'name': user.displayName ?? 'Unknown Player',
+          'score': 0,
+          'ready': false,
+          'joinedAt': FieldValue.serverTimestamp(),
+        }
+      });
+    });
+  }
+
+  // Zapusti lobby s transaction
+  static Future<void> leaveLobby(String lobbyId) async {
+    final user = _auth.currentUser;
+    if (user == null) return;
+
+    final lobbyRef = _firestore.collection('lobbies').doc(lobbyId);
+
+    return _firestore.runTransaction((transaction) async {
+      final snapshot = await transaction.get(lobbyRef);
+      if (!snapshot.exists) return;
+
+      final data = snapshot.data() as Map<String, dynamic>;
+      final players = Map<String, dynamic>.from(data['players'] ?? {});
+
+      if (!players.containsKey(user.uid)) {
+        return; // Igralec ni v tem lobbyju
+      }
+
+      // Odstrani igralca
+      players.remove(user.uid);
+
+      if (players.isEmpty) {
+        // Če ni več igralcev, izbriši lobby
+        transaction.delete(lobbyRef);
+      } else {
+        // Če je host zapustil lobby, določi novega hosta
+        String newHostId = data['hostId'];
+        if (newHostId == user.uid) {
+          newHostId = players.keys.first;
+          final newHost = players[newHostId];
+
+          transaction.update(lobbyRef, {
+            'currentPlayers': FieldValue.increment(-1),
+            'hostId': newHostId,
+            'hostName': newHost['name'],
+            'players': players,
+          });
+        } else {
+          transaction.update(lobbyRef, {
+            'currentPlayers': FieldValue.increment(-1),
+            'players': players,
+          });
+        }
+      }
+    });
+  }
+
+  // Toggle ready status
+  static Future<void> toggleReady(String lobbyId, bool ready) async {
+    final user = _auth.currentUser;
+    if (user == null) return;
+
+    await _firestore.collection('lobbies').doc(lobbyId).update({
+      'players.${user.uid}.ready': ready,
+    });
+  }
+
+  // Začni igro
+  static Future<void> startGame(
+      String lobbyId, List<Map<String, dynamic>> questions) async {
+    await _firestore.collection('lobbies').doc(lobbyId).update({
+      'status': 'playing',
+      'gameStarted': true,
+      'questions': questions,
+      'currentQuestion': 0,
+      'roundStartedAt': FieldValue.serverTimestamp(),
+    });
+  }
+
+  // Stream za posamezen lobby
+  static Stream<DocumentSnapshot> lobbyStream(String lobbyId) {
+    return _firestore.collection('lobbies').doc(lobbyId).snapshots();
+  }
+
+  // Posodobi rezultat igralca
+  static Future<void> updatePlayerScore(String lobbyId, int score) async {
+    final user = _auth.currentUser;
+    if (user == null) return;
+
+    await _firestore.collection('lobbies').doc(lobbyId).update({
+      'players.${user.uid}.score': FieldValue.increment(score),
+    });
+  }
+
+  // Nastavi vprašanja za lobby
+  static Future<void> setLobbyQuestions(
+      String lobbyId, List<Map<String, dynamic>> questions) async {
+    await FirebaseFirestore.instance.collection('lobbies').doc(lobbyId).update({
+      'questions': questions,
+      'status': 'playing',
+      'gameStarted': true,
+      'currentQuestion': 0,
+      'roundStartedAt': FieldValue.serverTimestamp(),
+      'roundDuration': 10,
+    });
+  }
+
+  static Future<void> advanceToNextQuestion(String lobbyId, int currentQuestion,
+      Map<String, dynamic> playerUpdates) async {
+    await FirebaseFirestore.instance.collection('lobbies').doc(lobbyId).update({
+      'currentQuestion': currentQuestion + 1,
+      'roundStartedAt': FieldValue.serverTimestamp(),
+      ...playerUpdates,
+    });
+  }
+
+  // Pridobi lobby podatke
+  static Future<Map<String, dynamic>?> getLobbyData(String lobbyId) async {
+    final doc = await _firestore.collection('lobbies').doc(lobbyId).get();
+    return doc.data();
   }
 
   // Stream za leaderboard
