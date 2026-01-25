@@ -11,152 +11,145 @@ import '../auth/auth_service.dart';
 class MainMenu extends StatelessWidget {
   const MainMenu({super.key});
 
+  static const Color bgDark = Color(0xFF0E0E11);
+  static const Color bgCard = Color(0xFF1A1A22);
+  static const Color accent = Color(0xFF7C7CFF);
+
   @override
   Widget build(BuildContext context) {
     final authService = AuthService();
 
     return Scaffold(
+      backgroundColor: bgDark,
       appBar: AppBar(
-        title: const Text('ProgTrivia'),
-        backgroundColor: Colors.blue.shade700,
-        elevation: 1,
+        backgroundColor: bgDark,
+        elevation: 0,
+        centerTitle: true,
+        title: const Text(
+          'ProgTrivia',
+          style: TextStyle(
+            fontSize: 22,
+            fontWeight: FontWeight.w700,
+            letterSpacing: 1.2,
+            color: accent,
+          ),
+        ),
         actions: [
           IconButton(
-            icon: const Icon(Icons.logout, size: 22),
-            tooltip: 'Odjava',
+            icon: const Icon(Icons.logout_rounded, color: Colors.white70),
+            tooltip: 'Log out',
             onPressed: () async {
-              bool confirm = await showDialog(
+              final confirm = await showDialog<bool>(
                 context: context,
-                builder: (context) => AlertDialog(
-                  title: const Text('Odjava'),
-                  content:
-                      const Text('Ali ste prepričani, da se želite odjaviti?'),
+                builder: (_) => AlertDialog(
+                  backgroundColor: bgCard,
+                  title: const Text(
+                    'Log out',
+                    style: TextStyle(color: Colors.white),
+                  ),
+                  content: const Text(
+                    'Are you sure you want to log out?',
+                    style: TextStyle(color: Colors.white70),
+                  ),
                   actions: [
                     TextButton(
-                      onPressed: () => Navigator.of(context).pop(false),
-                      child: const Text('Prekliči'),
+                      onPressed: () => Navigator.pop(context, false),
+                      child: const Text('Cancel'),
                     ),
                     ElevatedButton(
-                      onPressed: () => Navigator.of(context).pop(true),
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.red,
+                        backgroundColor: Colors.redAccent,
                       ),
-                      child: const Text(
-                        'Odjavi me',
-                        style: TextStyle(color: Colors.white),
-                      ),
+                      onPressed: () => Navigator.pop(context, true),
+                      child: const Text('Log out'),
                     ),
                   ],
                 ),
               );
 
               if (confirm == true) {
-                try {
-                  await authService.signOut();
-
-                  Navigator.pushReplacement(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => AuthScreen(),
-                    ),
-                  );
-                } catch (e) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text('Napaka pri odjavi: $e'),
-                      backgroundColor: Colors.red,
-                    ),
-                  );
-                }
+                await authService.signOut();
+                Navigator.pushReplacement(
+                  context,
+                  MaterialPageRoute(builder: (_) => AuthScreen()),
+                );
               }
             },
           ),
-          const SizedBox(width: 8),
         ],
       ),
-      body: Container(
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [
-              Colors.blue.shade50,
-              Colors.grey.shade100,
-            ],
-          ),
-        ),
-        child: Column(
-          children: [
-            const Padding(
-              padding: EdgeInsets.symmetric(vertical: 20, horizontal: 16),
-              child: Text(
-                'Izberite način igre',
-                style: TextStyle(
-                  fontSize: 22,
-                  fontWeight: FontWeight.w600,
-                  color: Colors.black87,
-                ),
-                textAlign: TextAlign.center,
+      body: Column(
+        children: [
+          const Padding(
+            padding: EdgeInsets.symmetric(vertical: 24),
+            child: Text(
+              'Choose Game Mode',
+              style: TextStyle(
+                fontSize: 24,
+                fontWeight: FontWeight.w600,
+                color: Colors.white,
               ),
             ),
-            Expanded(
-              child: GridView.count(
-                padding: const EdgeInsets.all(16),
-                crossAxisCount: 2,
-                crossAxisSpacing: 12,
-                mainAxisSpacing: 12,
-                childAspectRatio: 0.9,
-                children: [
-                  _MenuCard(
-                    title: 'Solo Kviz',
-                    icon: Icons.person,
-                    color: Colors.teal,
-                    onTap: () => Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => ChangeNotifierProvider(
-                          create: (context) => QuizProvider(),
-                          child: const SoloQuiz(),
-                        ),
+          ),
+          Expanded(
+            child: GridView.count(
+              padding: const EdgeInsets.all(20),
+              crossAxisCount: 2,
+              mainAxisSpacing: 16,
+              crossAxisSpacing: 16,
+              childAspectRatio: 0.95,
+              children: [
+                _MenuCard(
+                  title: 'Solo Quiz',
+                  subtitle: 'Play alone',
+                  icon: Icons.person_outline,
+                  onTap: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => ChangeNotifierProvider(
+                        create: (_) => QuizProvider(),
+                        child: const SoloQuiz(),
                       ),
                     ),
                   ),
-                  _MenuCard(
-                    title: 'Multiplayer',
-                    icon: Icons.group,
-                    color: Colors.orange,
-                    onTap: () => Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                          builder: (context) => const MultiplayerScreen()),
+                ),
+                _MenuCard(
+                  title: 'Multiplayer',
+                  subtitle: 'Play with others',
+                  icon: Icons.groups_rounded,
+                  onTap: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => const MultiplayerScreen(),
                     ),
                   ),
-                  _MenuCard(
-                    title: 'Statistika',
-                    icon: Icons.bar_chart,
-                    color: Colors.purple,
-                    onTap: () => Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                          builder: (context) => const StatisticsScreen()),
+                ),
+                _MenuCard(
+                  title: 'Statistics',
+                  subtitle: 'Your progress',
+                  icon: Icons.bar_chart_rounded,
+                  onTap: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => const StatisticsScreen(),
                     ),
                   ),
-                  _MenuCard(
-                    title: 'Lestvica',
-                    icon: Icons.leaderboard,
-                    color: Colors.red,
-                    onTap: () => Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                          builder: (context) => const LeaderboardScreen()),
+                ),
+                _MenuCard(
+                  title: 'Leaderboard',
+                  subtitle: 'Top players',
+                  icon: Icons.leaderboard_rounded,
+                  onTap: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => const LeaderboardScreen(),
                     ),
                   ),
-                ],
-              ),
+                ),
+              ],
             ),
-            const SizedBox(height: 20),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
@@ -164,58 +157,69 @@ class MainMenu extends StatelessWidget {
 
 class _MenuCard extends StatelessWidget {
   final String title;
+  final String subtitle;
   final IconData icon;
-  final Color color;
   final VoidCallback onTap;
 
   const _MenuCard({
     required this.title,
+    required this.subtitle,
     required this.icon,
-    required this.color,
     required this.onTap,
   });
 
+  static const Color bgCard = Color(0xFF1A1A22);
+  static const Color accent = Color(0xFF7C7CFF);
+
   @override
   Widget build(BuildContext context) {
-    return Card(
-      elevation: 2,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(12),
-        child: Container(
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(12),
-            color: Colors.white,
-          ),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Container(
-                width: 56,
-                height: 56,
-                decoration: BoxDecoration(
-                  color: color.withOpacity(0.1),
-                  shape: BoxShape.circle,
-                ),
-                child: Icon(
-                  icon,
-                  size: 32,
-                  color: color,
-                ),
-              ),
-              const SizedBox(height: 12),
-              Text(
-                title,
-                style: const TextStyle(
-                  fontSize: 15,
-                  fontWeight: FontWeight.w600,
-                  color: Colors.black87,
-                ),
-                textAlign: TextAlign.center,
-              ),
+    return InkWell(
+      borderRadius: BorderRadius.circular(18),
+      onTap: onTap,
+      child: Container(
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(18),
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              bgCard,
+              bgCard.withOpacity(0.85),
             ],
           ),
+          boxShadow: [
+            BoxShadow(
+              color: accent.withOpacity(0.15),
+              blurRadius: 12,
+              offset: const Offset(0, 6),
+            ),
+          ],
+        ),
+        padding: const EdgeInsets.all(18),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(icon, size: 42, color: accent),
+            const SizedBox(height: 16),
+            Text(
+              title,
+              style: const TextStyle(
+                fontSize: 17,
+                fontWeight: FontWeight.w600,
+                color: Colors.white,
+              ),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 6),
+            Text(
+              subtitle,
+              style: const TextStyle(
+                fontSize: 13,
+                color: Colors.white54,
+              ),
+              textAlign: TextAlign.center,
+            ),
+          ],
         ),
       ),
     );

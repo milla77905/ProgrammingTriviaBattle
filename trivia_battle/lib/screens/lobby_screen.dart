@@ -19,6 +19,10 @@ class _LobbyScreenState extends State<LobbyScreen> with WidgetsBindingObserver {
   bool _isLoading = false;
   bool _isStartingGame = false;
 
+  static const bgMain = Color(0xFF0E0E11);
+  static const bgCard = Color(0xFF1A1A22);
+  static const accent = Color(0xFF7C7CFF);
+
   @override
   void initState() {
     super.initState();
@@ -84,7 +88,7 @@ class _LobbyScreenState extends State<LobbyScreen> with WidgetsBindingObserver {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Napaka pri zagonu igre: $e')),
+          SnackBar(content: Text('Error starting the game: $e')),
         );
       }
     } finally {
@@ -130,7 +134,7 @@ class _LobbyScreenState extends State<LobbyScreen> with WidgetsBindingObserver {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Napaka pri spremembi statusa: $e')),
+          SnackBar(content: Text('Error updating ready status: $e')),
         );
       }
     } finally {
@@ -177,7 +181,7 @@ class _LobbyScreenState extends State<LobbyScreen> with WidgetsBindingObserver {
         }
       }
     } catch (e) {
-      print('Napaka pri zapuščanju lobbyja: $e');
+      print('Error leaving lobby: $e');
     }
   }
 
@@ -188,14 +192,25 @@ class _LobbyScreenState extends State<LobbyScreen> with WidgetsBindingObserver {
 
   Widget _buildLoadingScreen() {
     return Scaffold(
-      appBar: AppBar(title: const Text('Lobby')),
-      body: const Center(
+      backgroundColor: bgMain,
+      appBar: AppBar(
+        backgroundColor: bgMain,
+        elevation: 0,
+        title: const Text(
+          'Lobby',
+          style: TextStyle(color: Colors.white),
+        ),
+      ),
+      body: Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            CircularProgressIndicator(),
-            SizedBox(height: 16),
-            Text('Nalagam lobby...'),
+            const CircularProgressIndicator(color: accent),
+            const SizedBox(height: 16),
+            Text(
+              'Loading lobby...',
+              style: TextStyle(color: Colors.grey.shade400),
+            ),
           ],
         ),
       ),
@@ -204,20 +219,77 @@ class _LobbyScreenState extends State<LobbyScreen> with WidgetsBindingObserver {
 
   Widget _buildLobbyNotFound() {
     return Scaffold(
-      appBar: AppBar(title: const Text('Lobby')),
+      backgroundColor: bgMain,
+      appBar: AppBar(
+        backgroundColor: bgMain,
+        elevation: 0,
+        leading: IconButton(
+          icon: const Icon(
+            Icons.arrow_back_ios_new_rounded,
+            color: Colors.white70,
+            size: 20,
+          ),
+          tooltip: 'Back',
+          onPressed: () => Navigator.pop(context),
+        ),
+        title: const Text(
+          'Lobby',
+          style: TextStyle(
+            fontSize: 22,
+            fontWeight: FontWeight.w700,
+            letterSpacing: 1.2,
+            color: accent,
+          ),
+        ),
+      ),
       body: Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            const Icon(Icons.error, size: 64, color: Colors.red),
-            const SizedBox(height: 16),
-            const Text('Lobby ne obstaja'),
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: bgCard,
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(
+                Icons.error_outline_rounded,
+                size: 48,
+                color: Colors.redAccent,
+              ),
+            ),
+            const SizedBox(height: 24),
+            const Text(
+              'Lobby not found',
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 20,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
             const SizedBox(height: 8),
-            const Text('Lobby je bil zaprt ali izbrisan'),
-            const SizedBox(height: 20),
-            ElevatedButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('Nazaj'),
+            Text(
+              'The lobby was closed or deleted.',
+              style: TextStyle(color: Colors.grey.shade400),
+            ),
+            const SizedBox(height: 24),
+            SizedBox(
+              width: 160,
+              height: 44,
+              child: ElevatedButton(
+                onPressed: () => Navigator.pop(context),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: accent,
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+                child: const Text(
+                  'Go back',
+                  style: TextStyle(fontWeight: FontWeight.bold),
+                ),
+              ),
             ),
           ],
         ),
@@ -230,6 +302,10 @@ class _LobbyScreenState extends State<LobbyScreen> with WidgetsBindingObserver {
   @override
   Widget build(BuildContext context) {
     final user = FirebaseAuth.instance.currentUser;
+
+    const bgMain = Color(0xFF0E0E11);
+    const bgCard = Color(0xFF1A1A22);
+    const accent = Color(0xFF7C7CFF);
 
     return WillPopScope(
       onWillPop: () async {
@@ -251,7 +327,7 @@ class _LobbyScreenState extends State<LobbyScreen> with WidgetsBindingObserver {
           }
 
           final data = snapshot.data!.data() as Map<String, dynamic>;
-          snapshotData = data; 
+          snapshotData = data;
           final status = data['status'] ?? 'waiting';
           final players = Map<String, dynamic>.from(data['players'] ?? {});
           final isHost = data['hostId'] == user?.uid;
@@ -271,23 +347,28 @@ class _LobbyScreenState extends State<LobbyScreen> with WidgetsBindingObserver {
             return _buildLoadingScreen();
           }
 
-          if (user != null && players.containsKey(user.uid)) {
-            final currentPlayer = players[user.uid];
-            final serverReady = currentPlayer['ready'] ?? false;
-            if (_isReady != serverReady) {
-              WidgetsBinding.instance.addPostFrameCallback((_) {
-                if (mounted) setState(() => _isReady = serverReady);
-              });
-            }
-          }
-
           final canStartGame = _canHostStartGame(data);
 
           return Scaffold(
+            backgroundColor: bgMain,
             appBar: AppBar(
-              title: Text(data['name'] ?? 'Lobby'),
+              backgroundColor: bgMain,
+              elevation: 0,
+              title: Text(
+                data['name'] ?? 'Lobby',
+                style: TextStyle(
+                  fontSize: 22,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: 1.2,
+                  color: accent,
+                ),
+              ),
               leading: IconButton(
-                icon: const Icon(Icons.arrow_back),
+                icon: const Icon(
+                  Icons.arrow_back_ios_new_rounded,
+                  color: Colors.white70,
+                  size: 20,
+                ),
                 onPressed: _leaveLobbyAndPop,
               ),
             ),
@@ -295,124 +376,119 @@ class _LobbyScreenState extends State<LobbyScreen> with WidgetsBindingObserver {
               padding: const EdgeInsets.all(16),
               child: Column(
                 children: [
-                  Card(
-                    elevation: 2,
-                    child: Padding(
-                      padding: const EdgeInsets.all(16),
-                      child: Column(
-                        children: [
-                          Text(
-                            data['name'] ?? 'Ime ni nastavljeno',
-                            style: const TextStyle(
-                                fontSize: 20, fontWeight: FontWeight.bold),
+                  // === LOBBY INFO CARD ===
+                  Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: bgCard,
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    child: Column(
+                      children: [
+                        Text(
+                          data['name'] ?? '',
+                          style: const TextStyle(
+                            fontSize: 20,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.white,
                           ),
-                          const SizedBox(height: 8),
-                          Text('Host: ${data['hostName'] ?? 'Neznan'}'),
-                          const SizedBox(height: 16),
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                            children: [
-                              Column(
-                                children: [
-                                  const Icon(Icons.group),
-                                  Text(
-                                      '${players.length}/${data['maxPlayers'] ?? 4}'),
-                                  const Text('Igralcev'),
-                                ],
-                              ),
-                              Column(
-                                children: [
-                                  const Icon(Icons.timer),
-                                  Text('${data['roundDuration'] ?? 10}s'),
-                                  const Text('Čas'),
-                                ],
-                              ),
-                            ],
-                          ),
-                        ],
-                      ),
+                        ),
+                        const SizedBox(height: 6),
+                        Text(
+                          'Host: ${data['hostName']}',
+                          style: TextStyle(color: Colors.grey.shade400),
+                        ),
+                        const SizedBox(height: 16),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                          children: [
+                            _infoItem(
+                              icon: Icons.group,
+                              label: '${players.length}/${data['maxPlayers']}',
+                            ),
+                            _infoItem(
+                              icon: Icons.timer,
+                              label: '${data['roundDuration'] ?? 10}s',
+                            ),
+                          ],
+                        )
+                      ],
                     ),
                   ),
 
                   const SizedBox(height: 24),
 
+                  // === PLAYERS ===
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Text('Igralci:',
-                            style: TextStyle(
-                                fontSize: 18, fontWeight: FontWeight.bold)),
-                        const SizedBox(height: 8),
+                        const Text(
+                          'Players',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        const SizedBox(height: 12),
                         Expanded(
-                          child: players.isEmpty
-                              ? const Center(child: Text('Še ni igralcev...'))
-                              : ListView.builder(
-                                  itemCount: players.length,
-                                  itemBuilder: (context, index) {
-                                    final playerId =
-                                        players.keys.elementAt(index);
-                                    final player = players[playerId];
-                                    final isCurrentUser = playerId == user?.uid;
-                                    final isReady = player['ready'] ?? false;
-                                    final isHostPlayer =
-                                        playerId == data['hostId'];
+                          child: ListView.builder(
+                            itemCount: players.length,
+                            itemBuilder: (context, index) {
+                              final playerId = players.keys.elementAt(index);
+                              final player = players[playerId];
+                              final isReady = player['ready'] ?? false;
+                              final isHostPlayer = playerId == data['hostId'];
 
-                                    return Card(
-                                      margin: const EdgeInsets.only(bottom: 8),
-                                      color: isCurrentUser
-                                          ? Colors.blue.shade50
-                                          : null,
-                                      child: ListTile(
-                                        leading: CircleAvatar(
-                                          backgroundColor: isReady
-                                              ? Colors.green.shade100
-                                              : Colors.orange.shade100,
-                                          child: Icon(
-                                            isReady
-                                                ? Icons.check
-                                                : Icons.person,
-                                            color: isReady
-                                                ? Colors.green
-                                                : Colors.orange,
+                              return Container(
+                                margin: const EdgeInsets.only(bottom: 8),
+                                padding: const EdgeInsets.all(12),
+                                decoration: BoxDecoration(
+                                  color: bgCard,
+                                  borderRadius: BorderRadius.circular(14),
+                                ),
+                                child: Row(
+                                  children: [
+                                    Icon(
+                                      isReady
+                                          ? Icons.check_circle
+                                          : Icons.radio_button_unchecked,
+                                      color: isReady
+                                          ? Colors.green
+                                          : Colors.orange,
+                                    ),
+                                    const SizedBox(width: 12),
+                                    Expanded(
+                                      child: Text(
+                                        player['name'],
+                                        style: const TextStyle(
+                                            color: Colors.white),
+                                      ),
+                                    ),
+                                    if (isHostPlayer)
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(
+                                            horizontal: 8, vertical: 4),
+                                        decoration: BoxDecoration(
+                                          color: accent.withOpacity(0.2),
+                                          borderRadius:
+                                              BorderRadius.circular(8),
+                                        ),
+                                        child: const Text(
+                                          'HOST',
+                                          style: TextStyle(
+                                            color: accent,
+                                            fontSize: 12,
+                                            fontWeight: FontWeight.bold,
                                           ),
                                         ),
-                                        title: Text(
-                                          player['name'] ?? 'Igralec',
-                                          style: TextStyle(
-                                              fontWeight: isCurrentUser
-                                                  ? FontWeight.bold
-                                                  : null),
-                                        ),
-                                        trailing: Row(
-                                          mainAxisSize: MainAxisSize.min,
-                                          children: [
-                                            if (isReady)
-                                              const Icon(Icons.check,
-                                                  color: Colors.green),
-                                            if (isHostPlayer)
-                                              Container(
-                                                margin: const EdgeInsets.only(
-                                                    left: 8),
-                                                padding:
-                                                    const EdgeInsets.symmetric(
-                                                        horizontal: 8,
-                                                        vertical: 4),
-                                                decoration: BoxDecoration(
-                                                  color: Colors.blue.shade100,
-                                                  borderRadius:
-                                                      BorderRadius.circular(12),
-                                                ),
-                                                child: const Text('Host',
-                                                    style: TextStyle(
-                                                        fontSize: 12)),
-                                              ),
-                                          ],
-                                        ),
-                                      ),
-                                    );
-                                  },
+                                      )
+                                  ],
                                 ),
+                              );
+                            },
+                          ),
                         ),
                       ],
                     ),
@@ -420,78 +496,46 @@ class _LobbyScreenState extends State<LobbyScreen> with WidgetsBindingObserver {
 
                   const SizedBox(height: 16),
 
-                  if (!isHost)
-                    SizedBox(
+                  GestureDetector(
+                    onTap: isHost
+                        ? (canStartGame ? _startGame : null)
+                        : _toggleReady,
+                    child: Container(
                       width: double.infinity,
-                      child: ElevatedButton(
-                        onPressed: _isLoading ? null : _toggleReady,
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor:
-                              _isReady ? Colors.green : Colors.orange,
-                          foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(vertical: 16),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 20, vertical: 14),
+                      decoration: BoxDecoration(
+                        color: bgCard,
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(
+                          color: accent.withOpacity(0.4),
                         ),
-                        child: _isLoading
-                            ? const SizedBox(
-                                width: 24,
-                                height: 24,
-                                child: CircularProgressIndicator(
-                                    color: Colors.white, strokeWidth: 3),
-                              )
-                            : Text(_isReady ? 'Pripravljen!' : 'Pripravi se'),
+                      ),
+                      child: Center(
+                        child: Text(
+                          isHost
+                              ? 'START GAME'
+                              : _isReady
+                                  ? 'READY'
+                                  : 'GET READY',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                            letterSpacing: 0.5,
+                          ),
+                        ),
                       ),
                     ),
-
-                  if (isHost)
-                    SizedBox(
-                      width: double.infinity,
-                      child: ElevatedButton(
-                        onPressed: canStartGame && !_isStartingGame
-                            ? _startGame
-                            : null,
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor:
-                              canStartGame ? Colors.green : Colors.grey,
-                          foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(vertical: 16),
-                        ),
-                        child: _isStartingGame
-                            ? const Row(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  SizedBox(
-                                      width: 24,
-                                      height: 24,
-                                      child: CircularProgressIndicator(
-                                          color: Colors.white, strokeWidth: 3)),
-                                  SizedBox(width: 12),
-                                  Text('Nalagam vprašanja...'),
-                                ],
-                              )
-                            : Text(
-                                canStartGame
-                                    ? 'ZAČNI IGRO'
-                                    : players.length < 2
-                                        ? 'Čakam na igralce'
-                                        : 'Čakam na pripravo',
-                              ),
-                      ),
-                    ),
+                  ),
 
                   const SizedBox(height: 12),
 
-                  SizedBox(
-                    width: double.infinity,
-                    child: OutlinedButton(
-                      onPressed: _isLoading || _isStartingGame
-                          ? null
-                          : _leaveLobbyAndPop,
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: Colors.red,
-                        side: const BorderSide(color: Colors.red),
-                        padding: const EdgeInsets.symmetric(vertical: 14),
-                      ),
-                      child: const Text('Zapusti lobby'),
+                  TextButton(
+                    onPressed: _leaveLobbyAndPop,
+                    child: const Text(
+                      'Leave lobby',
+                      style: TextStyle(color: Colors.red),
                     ),
                   ),
                 ],
@@ -500,6 +544,19 @@ class _LobbyScreenState extends State<LobbyScreen> with WidgetsBindingObserver {
           );
         },
       ),
+    );
+  }
+
+  Widget _infoItem({required IconData icon, required String label}) {
+    return Column(
+      children: [
+        Icon(icon, color: Color(0xFF7C7CFF)),
+        const SizedBox(height: 4),
+        Text(
+          label,
+          style: const TextStyle(color: Colors.white),
+        ),
+      ],
     );
   }
 }

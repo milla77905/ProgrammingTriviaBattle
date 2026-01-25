@@ -2,280 +2,288 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../services/firestore_service.dart';
 
-class StatisticsScreen extends StatelessWidget {
+const bgMain = Color(0xFF0E0E11);
+const bgCard = Color(0xFF1A1A22);
+const accent = Color(0xFF7C7CFF);
+
+class StatisticsScreen extends StatefulWidget {
   const StatisticsScreen({super.key});
+
+  @override
+  State<StatisticsScreen> createState() => _StatisticsScreenState();
+}
+
+class _StatisticsScreenState extends State<StatisticsScreen>
+    with SingleTickerProviderStateMixin {
+  late TabController _tabController;
+
+  @override
+  void initState() {
+    super.initState();
+    _tabController = TabController(length: 2, vsync: this);
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: bgMain,
       appBar: AppBar(
-        title: const Text('Statistika'),
-        backgroundColor: Colors.blue.shade700,
+        backgroundColor: bgMain,
+        elevation: 0,
+        title: const Text(
+          'Statistics',
+          style: TextStyle(
+            fontSize: 22,
+            fontWeight: FontWeight.w700,
+            letterSpacing: 1.2,
+            color: accent,
+          ),
+        ),
+        leading: IconButton(
+          icon: const Icon(
+            Icons.arrow_back_ios_new_rounded,
+            color: Colors.white70,
+            size: 20,
+          ),
+          tooltip: 'Back',
+          onPressed: () => Navigator.pop(context),
+        ),
+        bottom: TabBar(
+          controller: _tabController,
+          indicatorColor: accent,
+          labelColor: Colors.white,
+          unselectedLabelColor: Colors.grey,
+          tabs: const [
+            Tab(text: 'Basic'),
+            Tab(text: 'Multiplayer'),
+          ],
+        ),
       ),
       body: StreamBuilder<DocumentSnapshot>(
         stream: FirestoreService.userStatsStream(),
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const Center(
-              child: CircularProgressIndicator(),
+              child: CircularProgressIndicator(color: accent),
             );
           }
 
           if (snapshot.hasError) {
-            print('Error in stats stream: ${snapshot.error}');
-            return Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  const Icon(Icons.error, color: Colors.red, size: 40),
-                  const SizedBox(height: 12),
-                  const Text(
-                    'Napaka pri nalaganju',
-                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    '${snapshot.error}',
-                    textAlign: TextAlign.center,
-                    style: const TextStyle(fontSize: 14),
-                  ),
-                ],
-              ),
+            return _ErrorBox(
+              title: 'Error loading statistics',
+              message: snapshot.error.toString(),
             );
           }
 
           if (!snapshot.hasData || !snapshot.data!.exists) {
-            return _EmptyStats();
+            return const _EmptyStats();
           }
 
-          try {
-            final data = snapshot.data!.data() as Map<String, dynamic>;
+          final data = snapshot.data!.data() as Map<String, dynamic>;
 
-            final int totalGames = (data['totalGames'] ?? 0) as int;
-            final int totalCorrect = (data['totalCorrect'] ?? 0) as int;
-            final int totalQuestions = (data['totalQuestions'] ?? 0) as int;
-            final int bestScore = (data['bestScore'] ?? 0) as int;
-            final int points = (data['points'] ?? 0) as int;
+          final int totalGames = (data['totalGames'] ?? 0) as int;
+          final int totalCorrect = (data['totalCorrect'] ?? 0) as int;
+          final int totalQuestions = (data['totalQuestions'] ?? 0) as int;
+          final int bestScore = (data['bestScore'] ?? 0) as int;
+          final int points = (data['points'] ?? 0) as int;
 
-            final dynamic accuracyValue = data['averageAccuracy'];
-            final double averageAccuracy = accuracyValue is double
-                ? accuracyValue
-                : (accuracyValue is int ? accuracyValue.toDouble() : 0.0);
+          final dynamic accuracyValue = data['averageAccuracy'];
+          final double averageAccuracy = accuracyValue is double
+              ? accuracyValue
+              : (accuracyValue is int ? accuracyValue.toDouble() : 0.0);
 
-            final dynamic gamesPlayedValue = data['gamesPlayed'];
-            final Map<String, dynamic> gamesPlayed =
-                gamesPlayedValue is Map<String, dynamic>
-                    ? gamesPlayedValue
-                    : {};
-            final int soloGames = (gamesPlayed['solo'] ?? 0) as int;
-            final int multiplayerGames =
-                (gamesPlayed['multiplayer'] ?? 0) as int;
+          final dynamic gamesPlayedValue = data['gamesPlayed'];
+          final Map<String, dynamic> gamesPlayed =
+              gamesPlayedValue is Map<String, dynamic> ? gamesPlayedValue : {};
+          final int soloGames = (gamesPlayed['solo'] ?? 0) as int;
+          final int multiplayerGames = (gamesPlayed['multiplayer'] ?? 0) as int;
 
-            final dynamic mpStatsValue = data['multiplayerStats'];
-            final Map<String, dynamic> multiplayerStats =
-                mpStatsValue is Map<String, dynamic> ? mpStatsValue : {};
-            final int mpWins = (multiplayerStats['wins'] ?? 0) as int;
-            final int mpLosses = (multiplayerStats['losses'] ?? 0) as int;
-            final int mpGames = (multiplayerStats['gamesPlayed'] ?? 0) as int;
-            final double mpWinRate =
-                (multiplayerStats['winRate'] ?? 0.0).toDouble();
+          final dynamic mpStatsValue = data['multiplayerStats'];
+          final Map<String, dynamic> multiplayerStats =
+              mpStatsValue is Map<String, dynamic> ? mpStatsValue : {};
+          final int mpWins = (multiplayerStats['wins'] ?? 0) as int;
+          final int mpLosses = (multiplayerStats['losses'] ?? 0) as int;
+          final int mpGames = (multiplayerStats['gamesPlayed'] ?? 0) as int;
+          final double mpWinRate =
+              (multiplayerStats['winRate'] ?? 0.0).toDouble();
 
-            return SingleChildScrollView(
-              padding: const EdgeInsets.all(12),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _MainStatCard(points: points, bestScore: bestScore),
-                  const SizedBox(height: 16),
-                  const Padding(
-                    padding: EdgeInsets.only(left: 8, bottom: 8),
-                    child: Text(
-                      'Osnovna statistika',
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                        color: Color(0xFF1565C0),
-                      ),
-                    ),
-                  ),
-                  GridView.count(
-                    shrinkWrap: true,
-                    physics: const NeverScrollableScrollPhysics(),
-                    crossAxisCount: 2,
-                    childAspectRatio: 1.0,
-                    crossAxisSpacing: 8,
-                    mainAxisSpacing: 8,
-                    padding: const EdgeInsets.all(4),
-                    children: [
-                      _StatCard(
-                        title: 'Odigrane igre',
-                        value: totalGames.toString(),
-                        icon: Icons.gamepad,
-                        color: Colors.blue,
-                        subtitle: 'Solo: $soloGames\nMulti: $multiplayerGames',
-                      ),
-                      _StatCard(
-                        title: 'Najboljši rezultat',
-                        value: bestScore.toString(),
-                        icon: Icons.star,
-                        color: Colors.amber,
-                        subtitle: 'točk',
-                      ),
-                      _StatCard(
-                        title: 'Natančnost',
-                        value: '${averageAccuracy.toStringAsFixed(1)}%',
-                        icon: Icons.percent,
-                        color: Colors.green,
-                        subtitle: 'Točke: $points',
-                      ),
-                      _StatCard(
-                        title: 'Pravilni odgovori',
-                        value: '$totalCorrect/$totalQuestions',
-                        icon: Icons.check_circle,
-                        color: Colors.green,
-                        subtitle: totalQuestions == 0
-                            ? '0%'
-                            : '${(totalCorrect / totalQuestions * 100).toStringAsFixed(1)}%',
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 16),
-                  if (mpGames > 0) ...[
-                    const Padding(
-                      padding: EdgeInsets.only(left: 8, bottom: 8),
-                      child: Text(
-                        'Multiplayer statistika',
-                        style: TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                          color: Color(0xFF6A1B9A),
-                        ),
-                      ),
-                    ),
-                    Card(
-                      margin: const EdgeInsets.symmetric(horizontal: 4),
-                      elevation: 2,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      child: Padding(
-                        padding: const EdgeInsets.all(12),
-                        child: Column(
-                          children: [
-                            _StatRow(
-                              label: 'Multiplayer igre',
-                              value: '$mpGames igre',
-                              icon: Icons.group,
-                            ),
-                            _StatRow(
-                              label: 'Zmage',
-                              value: mpWins.toString(),
-                              icon: Icons.emoji_events,
-                              color: Colors.green,
-                            ),
-                            _StatRow(
-                              label: 'Porazi',
-                              value: mpLosses.toString(),
-                              icon: Icons.sentiment_dissatisfied,
-                              color: Colors.red,
-                            ),
-                            _StatRow(
-                              label: 'Uspešnost',
-                              value: '${mpWinRate.toStringAsFixed(1)}%',
-                              icon: Icons.trending_up,
-                              color: Colors.blue,
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                  ],
-                ],
+          return TabBarView(
+            controller: _tabController,
+            children: [
+              _BasicStats(
+                totalGames: totalGames,
+                totalCorrect: totalCorrect,
+                totalQuestions: totalQuestions,
+                bestScore: bestScore,
+                points: points,
+                averageAccuracy: averageAccuracy,
+                soloGames: soloGames,
+                multiplayerGames: multiplayerGames,
               ),
-            );
-          } catch (e) {
-            print('Error parsing stats data: $e');
-            return Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  const Icon(Icons.warning, color: Colors.orange, size: 40),
-                  const SizedBox(height: 12),
-                  const Text(
-                    'Napaka pri obdelavi podatkov',
-                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    '$e',
-                    textAlign: TextAlign.center,
-                    style: const TextStyle(fontSize: 14),
-                  ),
-                ],
+              _MultiStats(
+                mpGames: mpGames,
+                mpWins: mpWins,
+                mpLosses: mpLosses,
+                mpWinRate: mpWinRate,
               ),
-            );
-          }
+            ],
+          );
         },
       ),
     );
   }
 }
 
-class _EmptyStats extends StatelessWidget {
+class _BasicStats extends StatelessWidget {
+  final int totalGames;
+  final int totalCorrect;
+  final int totalQuestions;
+  final int bestScore;
+  final int points;
+  final double averageAccuracy;
+  final int soloGames;
+  final int multiplayerGames;
+
+  const _BasicStats({
+    required this.totalGames,
+    required this.totalCorrect,
+    required this.totalQuestions,
+    required this.bestScore,
+    required this.points,
+    required this.averageAccuracy,
+    required this.soloGames,
+    required this.multiplayerGames,
+  });
+
   @override
   Widget build(BuildContext context) {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              Icons.insights,
-              size: 60,
-              color: Colors.grey.shade400,
-            ),
-            const SizedBox(height: 16),
-            const Text(
-              'Še ni statistike',
-              style: TextStyle(
-                fontSize: 20,
-                fontWeight: FontWeight.bold,
-                color: Colors.grey,
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(12),
+      child: Column(
+        children: [
+          _HeaderCard(points: points, bestScore: bestScore),
+          const SizedBox(height: 16),
+          _StatGrid(
+            items: [
+              _StatItem(
+                title: 'Games played',
+                value: totalGames.toString(),
+                icon: Icons.gamepad,
+                accent: accent,
+                subtitle: 'Solo: $soloGames • Multi: $multiplayerGames',
               ),
-            ),
-            const SizedBox(height: 12),
-            const Text(
-              'Igraj solo kvize za ogled statistike',
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                fontSize: 14,
-                color: Colors.grey,
+              _StatItem(
+                title: 'Best score',
+                value: bestScore.toString(),
+                icon: Icons.star,
+                accent: Colors.amber,
+                subtitle: 'points',
               ),
-            ),
-            const SizedBox(height: 24),
-            ElevatedButton.icon(
-              icon: const Icon(Icons.play_arrow, size: 20),
-              label: const Text('Začni igrati'),
-              onPressed: () {},
-              style: ElevatedButton.styleFrom(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+              _StatItem(
+                title: 'Accuracy',
+                value: '${averageAccuracy.toStringAsFixed(1)}%',
+                icon: Icons.percent,
+                accent: Colors.green,
+                subtitle: 'Progress',
+                progress: averageAccuracy / 100,
               ),
-            ),
-          ],
-        ),
+              _StatItem(
+                title: 'Correct answers',
+                value: '$totalCorrect/$totalQuestions',
+                icon: Icons.check_circle,
+                accent: Colors.green,
+                subtitle: totalQuestions == 0
+                    ? '0%'
+                    : '${(totalCorrect / totalQuestions * 100).toStringAsFixed(1)}%',
+              ),
+            ],
+          ),
+        ],
       ),
     );
   }
 }
 
-class _MainStatCard extends StatelessWidget {
+class _MultiStats extends StatelessWidget {
+  final int mpGames;
+  final int mpWins;
+  final int mpLosses;
+  final double mpWinRate;
+
+  const _MultiStats({
+    required this.mpGames,
+    required this.mpWins,
+    required this.mpLosses,
+    required this.mpWinRate,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    if (mpGames == 0) {
+      return const Center(
+        child: Padding(
+          padding: EdgeInsets.all(24),
+          child: Text(
+            'No multiplayer games yet.\nPlay a multiplayer match to unlock stats!',
+            textAlign: TextAlign.center,
+            style: TextStyle(color: Colors.grey),
+          ),
+        ),
+      );
+    }
+
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(12),
+      child: Column(
+        children: [
+          Card(
+            color: bgCard,
+            shape:
+                RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+            elevation: 0,
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                children: [
+                  _StatRow(
+                    label: 'Multiplayer games',
+                    value: '$mpGames games',
+                    icon: Icons.group,
+                    color: accent,
+                  ),
+                  _StatRow(
+                    label: 'Wins',
+                    value: mpWins.toString(),
+                    icon: Icons.emoji_events,
+                    color: Colors.green,
+                  ),
+                  _StatRow(
+                    label: 'Losses',
+                    value: mpLosses.toString(),
+                    icon: Icons.sentiment_dissatisfied,
+                    color: Colors.red,
+                  ),
+                  const SizedBox(height: 12),
+                  _ProgressBar(
+                    label: 'Win rate',
+                    value: mpWinRate / 100,
+                    suffix: '${mpWinRate.toStringAsFixed(1)}%',
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _HeaderCard extends StatelessWidget {
   final int points;
   final int bestScore;
 
-  const _MainStatCard({
+  const _HeaderCard({
     required this.points,
     required this.bestScore,
   });
@@ -283,71 +291,55 @@ class _MainStatCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Card(
-      margin: const EdgeInsets.symmetric(horizontal: 4),
-      elevation: 3,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(14),
-      ),
-      color: Colors.blue.shade50,
-      child: Padding(
+      color: bgCard,
+      elevation: 0,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+      child: Container(
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(14),
+          gradient: LinearGradient(
+            colors: [
+              accent.withOpacity(0.35),
+              bgCard,
+            ],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+        ),
         padding: const EdgeInsets.all(16),
         child: Column(
           children: [
-            Container(
-              width: 60,
-              height: 60,
-              decoration: BoxDecoration(
-                color: Colors.blue.shade100,
-                shape: BoxShape.circle,
-              ),
-              child: const Icon(
-                Icons.emoji_events,
-                size: 36,
-                color: Colors.amber,
-              ),
-            ),
-            const SizedBox(height: 12),
             const Text(
-              'SKUPNE TOČKE',
+              'YOUR STATS',
               style: TextStyle(
+                color: Colors.white70,
                 fontSize: 12,
-                fontWeight: FontWeight.bold,
-                color: Colors.grey,
-                letterSpacing: 1.0,
+                letterSpacing: 1.2,
               ),
             ),
-            const SizedBox(height: 4),
+            const SizedBox(height: 10),
             Text(
               points.toString(),
               style: const TextStyle(
-                fontSize: 36,
+                color: Colors.white,
+                fontSize: 44,
                 fontWeight: FontWeight.bold,
-                color: Color(0xFF1565C0),
               ),
             ),
-            const SizedBox(height: 12),
-            Divider(
-              color: Colors.grey.shade300,
-              height: 1,
-              thickness: 1,
+            const SizedBox(height: 8),
+            Text(
+              'Total points',
+              style: TextStyle(color: Colors.white70),
             ),
             const SizedBox(height: 12),
             Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Icon(
-                  Icons.star,
-                  size: 18,
-                  color: Colors.amber.shade600,
-                ),
-                const SizedBox(width: 6),
+                Icon(Icons.star, color: Colors.amber.shade600, size: 18),
+                const SizedBox(width: 8),
                 Text(
-                  'Najboljši rezultat: $bestScore',
-                  style: TextStyle(
-                    fontSize: 14,
-                    color: Colors.grey.shade700,
-                    fontWeight: FontWeight.w500,
-                  ),
+                  'Best score: $bestScore',
+                  style: const TextStyle(color: Colors.white70),
                 ),
               ],
             ),
@@ -358,83 +350,132 @@ class _MainStatCard extends StatelessWidget {
   }
 }
 
-class _StatCard extends StatelessWidget {
+class _StatGrid extends StatelessWidget {
+  final List<_StatItem> items;
+
+  const _StatGrid({required this.items});
+
+  @override
+  Widget build(BuildContext context) {
+    return GridView.count(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      crossAxisCount: 2,
+      crossAxisSpacing: 8,
+      mainAxisSpacing: 8,
+      childAspectRatio: 1.05,
+      children: items,
+    );
+  }
+}
+
+class _StatItem extends StatelessWidget {
   final String title;
   final String value;
   final IconData icon;
-  final Color color;
+  final Color accent;
   final String subtitle;
+  final double progress;
 
-  const _StatCard({
+  const _StatItem({
     required this.title,
     required this.value,
     required this.icon,
-    required this.color,
+    required this.accent,
     this.subtitle = '',
+    this.progress = 0,
   });
 
   @override
   Widget build(BuildContext context) {
     return Card(
-      elevation: 1,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(10),
-      ),
+      color: bgCard,
+      elevation: 0,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
       child: Padding(
-        padding: const EdgeInsets.all(10),
+        padding: const EdgeInsets.all(12),
         child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          crossAxisAlignment: CrossAxisAlignment.center,
           children: [
-            Container(
-              width: 36,
-              height: 36,
-              decoration: BoxDecoration(
-                color: color.withOpacity(0.1),
-                borderRadius: BorderRadius.circular(18),
-              ),
-              child: Icon(
-                icon,
-                size: 20,
-                color: color,
-              ),
+            Row(
+              children: [
+                Container(
+                  width: 38,
+                  height: 38,
+                  decoration: BoxDecoration(
+                    color: accent.withOpacity(0.2),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Icon(icon, color: accent, size: 20),
+                ),
+                const Spacer(),
+                Text(
+                  value,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                  ),
+                )
+              ],
             ),
-            const SizedBox(height: 8),
+            const SizedBox(height: 12),
             Text(
-              value,
-              style: const TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-                height: 1.0,
-              ),
-              textAlign: TextAlign.center,
+              title,
+              style: TextStyle(color: Colors.white70),
             ),
             if (subtitle.isNotEmpty) ...[
-              const SizedBox(height: 2),
+              const SizedBox(height: 6),
               Text(
                 subtitle,
-                style: TextStyle(
-                  fontSize: 10,
-                  color: Colors.grey.shade600,
-                  height: 1.1,
-                ),
+                style: TextStyle(color: Colors.grey.shade400, fontSize: 12),
                 textAlign: TextAlign.center,
               ),
             ],
-            const SizedBox(height: 4),
-            Text(
-              title.toUpperCase(),
-              style: TextStyle(
-                fontSize: 9,
-                color: Colors.grey.shade600,
-                fontWeight: FontWeight.w600,
-                letterSpacing: 0.3,
+            if (progress > 0) ...[
+              const SizedBox(height: 10),
+              _ProgressBar(
+                label: '',
+                value: progress,
+                suffix: '',
               ),
-              textAlign: TextAlign.center,
-            ),
+            ]
           ],
         ),
       ),
+    );
+  }
+}
+
+class _ProgressBar extends StatelessWidget {
+  final String label;
+  final double value;
+  final String suffix;
+
+  const _ProgressBar({
+    required this.label,
+    required this.value,
+    required this.suffix,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        if (label.isNotEmpty)
+          Row(
+            children: [
+              Text(label, style: const TextStyle(color: Colors.white70)),
+              const Spacer(),
+              Text(suffix, style: const TextStyle(color: Colors.white70)),
+            ],
+          ),
+        const SizedBox(height: 6),
+        LinearProgressIndicator(
+          value: value,
+          backgroundColor: Colors.grey.shade800,
+          color: accent,
+          minHeight: 6,
+        ),
+      ],
     );
   }
 }
@@ -455,28 +496,18 @@ class _StatRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8),
+      padding: const EdgeInsets.symmetric(vertical: 10),
       child: Row(
         children: [
-          Icon(
-            icon,
-            size: 18,
-            color: color,
-          ),
+          Icon(icon, size: 18, color: color),
           const SizedBox(width: 10),
           Expanded(
-            child: Text(
-              label,
-              style: const TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.w500,
-              ),
-            ),
+            child: Text(label, style: const TextStyle(color: Colors.white)),
           ),
           Text(
             value,
             style: const TextStyle(
-              fontSize: 14,
+              color: Colors.white,
               fontWeight: FontWeight.bold,
             ),
           ),
@@ -486,260 +517,103 @@ class _StatRow extends StatelessWidget {
   }
 }
 
-class _GameHistoryList extends StatelessWidget {
+class _EmptyStats extends StatelessWidget {
+  const _EmptyStats({super.key});
+
   @override
   Widget build(BuildContext context) {
-    return StreamBuilder<QuerySnapshot>(
-      stream: FirestoreService.gameHistoryStream(),
-      builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Center(
-            child: Padding(
-              padding: EdgeInsets.all(20),
-              child: CircularProgressIndicator(),
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              Icons.insights,
+              size: 60,
+              color: Colors.grey.shade500,
             ),
-          );
-        }
-
-        if (snapshot.hasError) {
-          final error = snapshot.error.toString();
-          if (error.contains('index')) {
-            return Card(
-              margin: const EdgeInsets.symmetric(horizontal: 4),
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  children: [
-                    const Icon(Icons.info, color: Colors.blue, size: 40),
-                    const SizedBox(height: 12),
-                    const Text(
-                      'Zgodovina iger se še nalaga',
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    const Text(
-                      'Firebase potrebuje nekaj časa za nastavitev',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(fontSize: 14, color: Colors.grey),
-                    ),
-                    const SizedBox(height: 12),
-                    ElevatedButton(
-                      onPressed: () {},
-                      child: const Text('Osveži'),
-                    ),
-                  ],
+            const SizedBox(height: 16),
+            const Text(
+              'No statistics yet',
+              style: TextStyle(
+                fontSize: 20,
+                fontWeight: FontWeight.bold,
+                color: Colors.white,
+              ),
+            ),
+            const SizedBox(height: 12),
+            const Text(
+              'Play solo quizzes to see your stats',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 14,
+                color: Colors.grey,
+              ),
+            ),
+            const SizedBox(height: 24),
+            ElevatedButton.icon(
+              icon: const Icon(Icons.play_arrow, size: 20),
+              label: const Text('Start playing'),
+              onPressed: () {},
+              style: ElevatedButton.styleFrom(
+                backgroundColor: accent,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 20,
+                  vertical: 10,
+                ),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
                 ),
               ),
-            );
-          }
-
-          return Card(
-            margin: const EdgeInsets.symmetric(horizontal: 4),
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Center(
-                child: Text('Napaka: ${snapshot.error}'),
-              ),
             ),
-          );
-        }
-
-        if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-          return Card(
-            margin: const EdgeInsets.symmetric(horizontal: 4),
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                children: [
-                  Icon(
-                    Icons.history,
-                    size: 40,
-                    color: Colors.grey.shade400,
-                  ),
-                  const SizedBox(height: 12),
-                  const Text(
-                    'Še ni zgodovine iger',
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.grey,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  const Text(
-                    'Tvoja prva igra bo tukaj!',
-                    style: TextStyle(
-                      fontSize: 14,
-                      color: Colors.grey,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          );
-        }
-
-        final docs = snapshot.data!.docs;
-        final displayCount = docs.length > 5 ? 5 : docs.length;
-
-        return Column(
-          children: [
-            ListView.separated(
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              itemCount: displayCount,
-              separatorBuilder: (context, index) => const SizedBox(height: 6),
-              itemBuilder: (context, index) {
-                final doc = docs[index];
-                final data = doc.data() as Map<String, dynamic>;
-
-                final String mode = data['mode']?.toString() ?? 'solo';
-                final int score =
-                    (data['score'] ?? data['yourScore'] ?? 0) as int;
-                final int correct = (data['correct'] ?? 0) as int;
-                final int total = (data['total'] ?? 1) as int;
-                final dynamic timestamp = data['timestamp'];
-
-                final String formattedDate = _formatDate(timestamp);
-                final int accuracy =
-                    total == 0 ? 0 : ((correct / total) * 100).round();
-
-                return Card(
-                  margin: EdgeInsets.zero,
-                  elevation: 0.5,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: ListTile(
-                    contentPadding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 6,
-                    ),
-                    leading: Container(
-                      width: 40,
-                      height: 40,
-                      decoration: BoxDecoration(
-                        color: mode == 'solo'
-                            ? Colors.blue.shade50
-                            : Colors.purple.shade50,
-                        borderRadius: BorderRadius.circular(20),
-                      ),
-                      child: Icon(
-                        mode == 'solo' ? Icons.person : Icons.group,
-                        size: 20,
-                        color: mode == 'solo' ? Colors.blue : Colors.purple,
-                      ),
-                    ),
-                    title: Row(
-                      children: [
-                        Expanded(
-                          child: Text(
-                            mode == 'solo' ? 'Solo kviz' : 'Multiplayer',
-                            style: const TextStyle(
-                              fontWeight: FontWeight.bold,
-                              fontSize: 14,
-                            ),
-                          ),
-                        ),
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 6,
-                            vertical: 2,
-                          ),
-                          decoration: BoxDecoration(
-                            color: mode == 'solo'
-                                ? Colors.blue.shade100
-                                : Colors.purple.shade100,
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          child: Text(
-                            mode == 'solo' ? 'SOLO' : 'MULTI',
-                            style: TextStyle(
-                              fontSize: 9,
-                              fontWeight: FontWeight.bold,
-                              color: mode == 'solo'
-                                  ? const Color(0xFF1565C0)
-                                  : const Color(0xFF6A1B9A),
-                              letterSpacing: 0.3,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                    subtitle: Padding(
-                      padding: const EdgeInsets.only(top: 2),
-                      child: Text(
-                        '$formattedDate • $correct/$total pravilno ($accuracy%)',
-                        style: TextStyle(
-                          fontSize: 11,
-                          color: Colors.grey.shade600,
-                        ),
-                      ),
-                    ),
-                    trailing: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      crossAxisAlignment: CrossAxisAlignment.end,
-                      children: [
-                        Text(
-                          '$score',
-                          style: const TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.green,
-                          ),
-                        ),
-                        Text(
-                          'točk',
-                          style: TextStyle(
-                            fontSize: 10,
-                            color: Colors.grey.shade500,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                );
-              },
-            ),
-            if (docs.length > 5) ...[
-              const SizedBox(height: 8),
-              Text(
-                'Prikazano $displayCount od ${docs.length} iger',
-                style: const TextStyle(fontSize: 12, color: Colors.grey),
-              ),
-            ],
           ],
-        );
-      },
+        ),
+      ),
     );
   }
+}
 
-  String _formatDate(dynamic timestamp) {
-    if (timestamp == null) return 'Neznan datum';
+class _ErrorBox extends StatelessWidget {
+  final String title;
+  final String message;
 
-    try {
-      if (timestamp is Timestamp) {
-        final date = timestamp.toDate();
-        final now = DateTime.now();
-        final difference = now.difference(date);
+  const _ErrorBox({
+    required this.title,
+    required this.message,
+  });
 
-        if (difference.inDays == 0) {
-          return 'Danes';
-        } else if (difference.inDays == 1) {
-          return 'Včeraj';
-        } else if (difference.inDays < 7) {
-          return 'Pred ${difference.inDays} dnevi';
-        } else {
-          return '${date.day}. ${date.month}. ${date.year}';
-        }
-      }
-    } catch (e) {
-      print('Error formatting date: $e');
-    }
-
-    return 'Neznan datum';
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(Icons.error_outline, size: 60, color: Colors.redAccent),
+            const SizedBox(height: 16),
+            Text(
+              title,
+              style: const TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+                color: Colors.white,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              message,
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                fontSize: 14,
+                color: Colors.grey,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }

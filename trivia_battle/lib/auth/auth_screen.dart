@@ -3,6 +3,10 @@ import './auth_service.dart';
 import '/screens/main_menu.dart';
 import '../services/firestore_service.dart';
 
+const bgMain = Color(0xFF0E0E11);
+const bgCard = Color(0xFF1A1A22);
+const accent = Color(0xFF7C7CFF);
+
 class AuthScreen extends StatelessWidget {
   final AuthService _authService = AuthService();
 
@@ -11,124 +15,156 @@ class AuthScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: Container(
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            colors: [Color(0xFF0F2027), Color(0xFF2C5364)],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-          ),
-        ),
+      backgroundColor: bgMain,
+      body: SafeArea(
         child: Center(
           child: SingleChildScrollView(
-            padding: const EdgeInsets.all(20),
+            padding: const EdgeInsets.symmetric(horizontal: 24),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                const Icon(Icons.code, size: 100, color: Colors.white),
-                const SizedBox(height: 20),
+                // LOGO / ICON
+                Container(
+                  width: 90,
+                  height: 90,
+                  decoration: BoxDecoration(
+                    color: accent.withOpacity(0.15),
+                    borderRadius: BorderRadius.circular(24),
+                  ),
+                  child: const Icon(
+                    Icons.code_rounded,
+                    size: 46,
+                    color: accent,
+                  ),
+                ),
+
+                const SizedBox(height: 28),
+
+                // TITLE
                 const Text(
-                  "Dobrodošli v ProgTrivia!",
+                  'ProgTrivia',
                   style: TextStyle(
                     fontSize: 28,
                     fontWeight: FontWeight.bold,
                     color: Colors.white,
                   ),
+                ),
+
+                const SizedBox(height: 8),
+
+                const Text(
+                  'Programming trivia game',
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: Colors.white60,
+                  ),
                   textAlign: TextAlign.center,
                 ),
-                const SizedBox(height: 8),
-                const Text(
-                  "Programerski trivia izziv",
-                  style: TextStyle(
-                    fontSize: 16,
-                    color: Colors.white70,
+
+                const SizedBox(height: 36),
+
+                // LOGIN CARD
+                Container(
+                  padding: const EdgeInsets.all(20),
+                  decoration: BoxDecoration(
+                    color: bgCard,
+                    borderRadius: BorderRadius.circular(18),
+                    border: Border.all(color: Colors.white10),
                   ),
-                ),
-                const SizedBox(height: 40),
-                ElevatedButton.icon(
-                  icon: const Icon(Icons.login),
-                  label: const Text("Prijava z Google"),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.white,
-                    foregroundColor: Colors.blue.shade800,
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 24,
-                      vertical: 14,
-                    ),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(16),
-                    ),
-                    elevation: 3,
-                  ),
-                  onPressed: () async {
-                    try {
-                      // Prikaži loading
-                      showDialog(
-                        context: context,
-                        barrierDismissible: false,
-                        builder: (context) => const Center(
-                          child: CircularProgressIndicator(),
+                  child: Column(
+                    children: [
+                      const Text(
+                        'Sign in to continue',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
                         ),
-                      );
-
-                      final user = await _authService.signInWithGoogle();
-
-                      // Zapri loading dialog
-                      if (context.mounted) {
-                        Navigator.of(context).pop();
-                      }
-
-                      if (user != null) {
-                        await FirestoreService.createUserIfNotExists();
-
-                        if (context.mounted) {
-                          Navigator.pushReplacement(
-                            context,
-                            MaterialPageRoute(builder: (_) => const MainMenu()),
-                          );
-                        }
-                      } else {
-                        if (context.mounted) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content:
-                                  Text("Prijava ni uspela. Poskusite znova."),
-                              backgroundColor: Colors.red,
-                            ),
-                          );
-                        }
-                      }
-                    } catch (e) {
-                      print("Napaka v AuthScreen: $e");
-
-                      if (context.mounted) {
-                        Navigator.of(context).pop();
-
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            content: Text("Napaka: $e"),
-                            backgroundColor: Colors.red,
+                      ),
+                      const SizedBox(height: 20),
+                      SizedBox(
+                        width: double.infinity,
+                        child: ElevatedButton.icon(
+                          icon: const Icon(Icons.login, size: 20),
+                          label: const Text(
+                            'Sign in with Google',
+                            style: TextStyle(fontSize: 15),
                           ),
-                        );
-                      }
-                    }
-                  },
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: accent,
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(vertical: 14),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(14),
+                            ),
+                            elevation: 0,
+                          ),
+                          onPressed: () async {
+                            try {
+                              showDialog(
+                                context: context,
+                                barrierDismissible: false,
+                                builder: (_) => const Center(
+                                  child: CircularProgressIndicator(
+                                    color: accent,
+                                  ),
+                                ),
+                              );
+
+                              final user =
+                                  await _authService.signInWithGoogle();
+
+                              if (context.mounted) {
+                                Navigator.of(context).pop();
+                              }
+
+                              if (user != null) {
+                                await FirestoreService.createUserIfNotExists();
+
+                                if (context.mounted) {
+                                  Navigator.pushReplacement(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (_) => const MainMenu(),
+                                    ),
+                                  );
+                                }
+                              } else {
+                                _showError(
+                                  context,
+                                  'Sign in failed. Please try again.',
+                                );
+                              }
+                            } catch (e) {
+                              if (context.mounted) {
+                                Navigator.of(context).pop();
+                                _showError(context, e.toString());
+                              }
+                            }
+                          },
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
+
                 const SizedBox(height: 20),
+
                 TextButton(
                   onPressed: () {
                     ScaffoldMessenger.of(context).showSnackBar(
                       const SnackBar(
                         content: Text(
-                            "Za uporabo aplikacije je potrebna prijava z Google"),
+                          'You must sign in with Google to use the app.',
+                        ),
                       ),
                     );
                   },
                   child: const Text(
-                    "Kaj je ProgTrivia?",
+                    'What is ProgTrivia?',
                     style: TextStyle(
-                      color: Colors.white70,
-                      fontSize: 14,
+                      color: Colors.white38,
+                      fontSize: 13,
                     ),
                   ),
                 ),
@@ -136,6 +172,15 @@ class AuthScreen extends StatelessWidget {
             ),
           ),
         ),
+      ),
+    );
+  }
+
+  void _showError(BuildContext context, String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        backgroundColor: Colors.red.shade700,
+        content: Text(message),
       ),
     );
   }

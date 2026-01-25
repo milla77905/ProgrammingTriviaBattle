@@ -4,6 +4,7 @@ import 'dart:math';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:triviabattle/screens/main_menu.dart';
 import 'package:triviabattle/services/firestore_service.dart';
 
 class MultiplayerGame extends StatefulWidget {
@@ -26,9 +27,14 @@ class _MultiplayerGameState extends State<MultiplayerGame> {
   String? _myUid;
   String? _opponentUid;
   String? _opponentName;
+
   int _myScore = 0;
   int _opponentScore = 0;
   int _timeLeft = 10;
+
+  static const bgColor = Color(0xFF0E0E11);
+  static const cardColor = Color(0xFF1A1A22);
+  static const accentColor = Color(0xFF7C7CFF);
 
   @override
   void initState() {
@@ -51,16 +57,15 @@ class _MultiplayerGameState extends State<MultiplayerGame> {
     _timeLeft = duration;
 
     _roundTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
-      if (mounted) {
-        setState(() {
-          if (_timeLeft > 0) {
-            _timeLeft--;
-          } else {
-            timer.cancel();
-            _checkRoundStatus();
-          }
-        });
-      }
+      if (!mounted) return;
+      setState(() {
+        if (_timeLeft > 0) {
+          _timeLeft--;
+        } else {
+          timer.cancel();
+          _checkRoundStatus();
+        }
+      });
     });
   }
 
@@ -74,15 +79,9 @@ class _MultiplayerGameState extends State<MultiplayerGame> {
     final data = lobbyDoc.data()!;
     final playersMap = data['players'] as Map<String, dynamic>? ?? {};
 
-    bool allAnswered = true;
-    for (final player in playersMap.values) {
-      if ((player as Map)['answered'] != true) {
-        allAnswered = false;
-        break;
-      }
-    }
+    final allAnswered =
+        playersMap.values.every((p) => (p as Map)['answered'] == true);
 
-    // Če so vsi odgovorili ali je čas potekel, pojdi na naslednje vprašanje
     if (allAnswered || _timeLeft <= 0) {
       _moveToNextQuestion(data);
     }
@@ -90,26 +89,29 @@ class _MultiplayerGameState extends State<MultiplayerGame> {
 
   Future<void> _moveToNextQuestion(Map<String, dynamic> data) async {
     if (_isMovingToNextQuestion) return;
-
     _isMovingToNextQuestion = true;
+
     final currentIdx = data['currentQuestion'] as int? ?? 0;
     final questions =
         (data['questions'] as List<dynamic>?)?.cast<Map<String, dynamic>>() ??
             [];
 
     if (currentIdx + 1 >= questions.length) {
-      await _firestore.collection('lobbies').doc(widget.lobbyId).update({
-        'status': 'finished',
-      });
+      await _firestore
+          .collection('lobbies')
+          .doc(widget.lobbyId)
+          .update({'status': 'finished'});
     } else {
+      // 1) reset answers
+      await _resetPlayersAnswers(data);
+
+      // 2) update currentQuestion
       await _firestore.collection('lobbies').doc(widget.lobbyId).update({
         'currentQuestion': currentIdx + 1,
         'roundStartedAt': FieldValue.serverTimestamp(),
       });
 
-      await _resetPlayersAnswers(data);
-
-      _startRoundTimer(data['roundDuration'] as int? ?? 10);
+      _startRoundTimer(data['roundDuration'] ?? 10);
     }
 
     _isMovingToNextQuestion = false;
@@ -119,30 +121,19 @@ class _MultiplayerGameState extends State<MultiplayerGame> {
     final playersMap = data['players'] as Map<String, dynamic>? ?? {};
     final updates = <String, dynamic>{};
 
-    for (final playerId in playersMap.keys) {
-      updates['players.$playerId.answered'] = false;
-      updates['players.$playerId.lastAnswer'] = -1;
-      updates['players.$playerId.answeredAt'] = null;
+    for (final id in playersMap.keys) {
+      updates['players.$id.answered'] = false;
+      updates['players.$id.lastAnswer'] = -1;
+      updates['players.$id.answeredAt'] = null;
     }
 
     await _firestore.collection('lobbies').doc(widget.lobbyId).update(updates);
   }
 
-  int _calculateSecondsLeft(DateTime? startedAt, int durationSec) {
-    if (startedAt == null) return durationSec;
+  int _calculateSecondsLeft(DateTime? startedAt, int duration) {
+    if (startedAt == null) return duration;
     final elapsed = DateTime.now().difference(startedAt).inSeconds;
-    return max(0, durationSec - elapsed);
-  }
-
-  Color _getDifficultyColor(String? diff) {
-    switch (diff?.toLowerCase()) {
-      case 'hard':
-        return Colors.red;
-      case 'medium':
-        return Colors.orange;
-      default:
-        return Colors.green;
-    }
+    return max(0, duration - elapsed);
   }
 
   @override
@@ -151,290 +142,209 @@ class _MultiplayerGameState extends State<MultiplayerGame> {
       stream: _firestore.collection('lobbies').doc(widget.lobbyId).snapshots(),
       builder: (context, snapshot) {
         if (!snapshot.hasData || !snapshot.data!.exists) {
-          return _buildErrorScreen("Lobby ne obstaja več");
+          return _loading("Lobby not found");
         }
 
         final data = snapshot.data!.data() as Map<String, dynamic>;
-        final status = data['status'] ?? 'unknown';
+        final status = data['status'];
 
         if (status == 'finished') {
           WidgetsBinding.instance.addPostFrameCallback((_) {
-            if (!_gameEnded && mounted) {
+            if (!_gameEnded) {
               _gameEnded = true;
               _showResults(data);
             }
           });
-          return _buildLoadingScreen("Igra je končana...");
+          return _loading("Game finished...");
         }
 
         if (status != 'playing') {
-          return _buildLoadingScreen("Igra se še ni začela...");
+          return _loading("Waiting for game to start...");
         }
 
-        final questions = (data['questions'] as List<dynamic>?)
-                ?.cast<Map<String, dynamic>>() ??
-            [];
-        if (questions.isEmpty) {
-          return _buildLoadingScreen("Čakam na vprašanja...");
-        }
-
-        final currentIdx = data['currentQuestion'] as int? ?? 0;
-        if (currentIdx >= questions.length) {
-          WidgetsBinding.instance.addPostFrameCallback((_) {
-            if (!_gameEnded && mounted) {
-              _gameEnded = true;
-              _showResults(data);
-            }
-          });
-          return _buildLoadingScreen("Konec vprašanj...");
-        }
+        final questions =
+            (data['questions'] as List?)?.cast<Map<String, dynamic>>() ?? [];
+        final currentIdx = data['currentQuestion'] ?? 0;
 
         if (_roundTimer == null || !_roundTimer!.isActive) {
-          final roundStarted = (data['roundStartedAt'] as Timestamp?)?.toDate();
-          final duration = data['roundDuration'] as int? ?? 10;
-          final timeLeftFromServer =
-              _calculateSecondsLeft(roundStarted, duration);
-          _timeLeft = timeLeftFromServer;
+          final startedAt = (data['roundStartedAt'] as Timestamp?)?.toDate();
+          final duration = data['roundDuration'] ?? 10;
+          _timeLeft = _calculateSecondsLeft(startedAt, duration);
           _startRoundTimer(duration);
         }
 
         final question = questions[currentIdx];
-        final roundStarted = (data['roundStartedAt'] as Timestamp?)?.toDate();
-        final duration = data['roundDuration'] as int? ?? 10;
+        final players = data['players'] as Map<String, dynamic>;
+        final myPlayer = players[_myUid] ?? {};
+        final opponent = players.entries.firstWhere((e) => e.key != _myUid);
 
-        final playersMap = data['players'] as Map<String, dynamic>? ?? {};
-        final myPlayer = playersMap[_myUid] ?? {};
-        final opponentEntries =
-            playersMap.entries.where((e) => e.key != _myUid).toList();
+        _opponentName ??= opponent.value['name'];
+        _myScore = myPlayer['score'] ?? 0;
+        _opponentScore = opponent.value['score'] ?? 0;
 
-        if (opponentEntries.isEmpty) {
-          return _buildLoadingScreen("Čakam na nasprotnika...");
-        }
-
-        final opponentEntry = opponentEntries.first;
-        _opponentUid ??= opponentEntry.key;
-        _opponentName ??= (opponentEntry.value as Map)['name'] ?? 'Nasprotnik';
-
-        _myScore = (myPlayer['score'] as num?)?.toInt() ?? 0;
-        _opponentScore = (opponentEntry.value['score'] as num?)?.toInt() ?? 0;
-
-        final timeUp = _timeLeft <= 0;
-
-        final hasAnswered = myPlayer['answered'] == true;
-        final selectedIdx = (myPlayer['lastAnswer'] as num?)?.toInt() ?? -1;
-        final correctIdx = question['correctIndex'] as int;
-
-        final options = List<String>.from(question['options']);
+        final selectedIdx = myPlayer['lastAnswer'] ?? -1;
+        final correctIdx = question['correctIndex'];
 
         return Scaffold(
-          appBar: AppBar(
-            title: Text('Vprašanje ${currentIdx + 1}/${questions.length}'),
-            centerTitle: true,
-            actions: [
-              Padding(
-                padding: const EdgeInsets.only(right: 12),
-                child: Row(
-                  children: [
-                    const Icon(Icons.timer, size: 18),
-                    const SizedBox(width: 4),
-                    Text('$_timeLeft s',
-                        style: const TextStyle(fontWeight: FontWeight.bold)),
-                  ],
-                ),
-              ),
-            ],
-          ),
-          body: Column(
-            children: [
-              Container(
-                color: Colors.blue.shade700,
-                padding:
-                    const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
-                child: Row(
+          backgroundColor: bgColor,
+          body: SafeArea(
+            child: Column(
+              children: [
+                const SizedBox(height: 12),
+
+                /// SCORES
+                Row(
                   mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                   children: [
-                    _buildScoreColumn("Jaz", _myScore, Colors.white),
-                    _buildScoreColumn(_opponentName ?? "Nasprotnik",
-                        _opponentScore, Colors.yellow[100]!),
+                    _scoreCard("You", _myScore),
+                    _scoreCard(_opponentName!, _opponentScore),
                   ],
                 ),
-              ),
 
-              // Vprašanje + kategorija + težavnost
-              Padding(
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Chip(
-                          label: Text(question['category'] ?? 'Kategorija'),
-                          backgroundColor: Colors.grey[300],
-                        ),
-                        Chip(
-                          label: Text(
-                              (question['difficulty'] ?? 'easy').toUpperCase()),
-                          backgroundColor:
-                              _getDifficultyColor(question['difficulty']),
-                          labelStyle: const TextStyle(color: Colors.white),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 16),
-                    Container(
-                      padding: const EdgeInsets.all(20),
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(16),
-                        boxShadow: [
-                          BoxShadow(
-                              color: Colors.black12,
-                              blurRadius: 8,
-                              offset: Offset(0, 3)),
-                        ],
+                const SizedBox(height: 24),
+
+                /// TIMER
+                SizedBox(
+                  width: 90,
+                  height: 90,
+                  child: Stack(
+                    alignment: Alignment.center,
+                    children: [
+                      CircularProgressIndicator(
+                        value: _timeLeft / (data['roundDuration'] ?? 10),
+                        strokeWidth: 8,
+                        backgroundColor: cardColor,
+                        valueColor: const AlwaysStoppedAnimation(accentColor),
                       ),
-                      child: Text(
-                        question['question'] ?? '',
+                      Text(
+                        "$_timeLeft",
                         style: const TextStyle(
-                            fontSize: 20, fontWeight: FontWeight.w600),
-                        textAlign: TextAlign.center,
+                          fontSize: 26,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 12),
+
+                Text(
+                  "Question ${currentIdx + 1}/${questions.length}",
+                  style: const TextStyle(
+                    color: Colors.white70,
+                    fontSize: 16,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+
+                const SizedBox(height: 24),
+
+                /// QUESTION
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  child: Container(
+                    padding: const EdgeInsets.all(20),
+                    decoration: BoxDecoration(
+                      color: cardColor,
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: Text(
+                      question['question'],
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(
+                        fontSize: 20,
+                        color: Colors.white,
                       ),
                     ),
-                  ],
+                  ),
                 ),
-              ),
 
-              // Možnosti
-              Expanded(
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                const SizedBox(height: 20),
+
+                /// ANSWERS
+                Expanded(
                   child: GridView.count(
+                    padding: const EdgeInsets.all(16),
                     crossAxisCount: 2,
                     mainAxisSpacing: 12,
                     crossAxisSpacing: 12,
                     childAspectRatio: 1.4,
-                    children: options.asMap().entries.map((entry) {
-                      final idx = entry.key;
-                      final text = entry.value;
-                      final isCorrect = idx == correctIdx;
-                      final isSelected = idx == selectedIdx;
+                    children: List<String>.from(question['options'])
+                        .asMap()
+                        .entries
+                        .map(
+                      (e) {
+                        final isCorrect = e.key == correctIdx;
+                        final isSelected = e.key == selectedIdx;
 
-                      Color? bgColor;
-                      Color? textColor = Colors.black87;
-                      BorderSide border =
-                          BorderSide(color: Colors.grey.shade300, width: 1.5);
-
-                      if (hasAnswered || timeUp) {
-                        if (isCorrect) {
-                          bgColor = Colors.green.shade100;
-                          border = BorderSide(color: Colors.green, width: 2.5);
-                          textColor = Colors.green.shade900;
-                        } else if (isSelected) {
-                          bgColor = Colors.red.shade100;
-                          border = BorderSide(color: Colors.red, width: 2.5);
-                          textColor = Colors.red.shade900;
+                        Color color = cardColor;
+                        if (selectedIdx != -1) {
+                          if (isCorrect) color = Colors.green.shade700;
+                          if (isSelected && !isCorrect) {
+                            color = Colors.red.shade700;
+                          }
                         }
-                      }
 
-                      return Card(
-                        elevation: hasAnswered || timeUp ? 0 : 3,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          side: border,
-                        ),
-                        color: bgColor ?? Colors.white,
-                        child: InkWell(
-                          borderRadius: BorderRadius.circular(12),
-                          onTap: (hasAnswered || timeUp)
+                        return GestureDetector(
+                          onTap: selectedIdx != -1
                               ? null
-                              : () => _submitAnswer(idx, question, _timeLeft),
-                          child: Center(
-                            child: Padding(
-                              padding: const EdgeInsets.all(12),
+                              : () => _submitAnswer(e.key, question, _timeLeft),
+                          child: Container(
+                            decoration: BoxDecoration(
+                              color: color,
+                              borderRadius: BorderRadius.circular(16),
+                            ),
+                            child: Center(
                               child: Text(
-                                text,
+                                e.value,
                                 textAlign: TextAlign.center,
-                                style: TextStyle(
+                                style: const TextStyle(
+                                  color: Colors.white,
                                   fontSize: 15,
-                                  color: textColor,
-                                  fontWeight:
-                                      isSelected ? FontWeight.bold : null,
+                                  fontWeight: FontWeight.w600,
                                 ),
                               ),
                             ),
                           ),
-                        ),
-                      );
-                    }).toList(),
+                        );
+                      },
+                    ).toList(),
                   ),
                 ),
-              ),
-
-              if (hasAnswered || timeUp)
-                Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Column(
-                    children: [
-                      Text(
-                        selectedIdx == correctIdx ? "✅ PRAVILNO!" : "❌ Napačno",
-                        style: TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                          color: selectedIdx == correctIdx
-                              ? Colors.green
-                              : Colors.red,
-                        ),
+                if (selectedIdx != -1 || _timeLeft <= 0)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 24),
+                    child: Text(
+                      selectedIdx == correctIdx
+                          ? "Correct! +${_calculatePoints(question['difficulty'], _timeLeft)} points"
+                          : "Wrong",
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        color: selectedIdx == correctIdx
+                            ? Colors.greenAccent
+                            : Colors.redAccent,
                       ),
-                      const SizedBox(height: 8),
-                      if (selectedIdx != correctIdx)
-                        Text(
-                          "Pravilen odgovor: ${options[correctIdx]}",
-                          style: const TextStyle(fontSize: 16),
-                        ),
-                      const SizedBox(height: 12),
-                      // Prikaži če nasprotnik še ni odgovoril
-                      if (!_checkIfAllAnswered(playersMap) && hasAnswered)
-                        Text(
-                          "Čakam na nasprotnika...",
-                          style: TextStyle(
-                            fontSize: 14,
-                            color: Colors.orange.shade700,
-                          ),
-                        ),
-                    ],
+                    ),
                   ),
-                ),
-            ],
+              ],
+            ),
           ),
         );
       },
     );
   }
 
-  bool _checkIfAllAnswered(Map<String, dynamic> playersMap) {
-    for (final player in playersMap.values) {
-      if ((player as Map)['answered'] != true) {
-        return false;
-      }
-    }
-    return true;
-  }
-
-  Widget _buildScoreColumn(String label, int score, Color color) {
+  Widget _scoreCard(String name, int score) {
     return Column(
-      mainAxisSize: MainAxisSize.min,
       children: [
-        Text(label,
-            style: TextStyle(color: color.withOpacity(0.9), fontSize: 13)),
+        Text(name, style: const TextStyle(color: Colors.white70, fontSize: 14)),
+        const SizedBox(height: 4),
         Text(
           "$score",
-          style: TextStyle(
-            color: color,
-            fontSize: 26,
-            fontWeight: FontWeight.bold,
-          ),
+          style: const TextStyle(
+              color: Colors.white, fontSize: 26, fontWeight: FontWeight.bold),
         ),
       ],
     );
@@ -446,16 +356,12 @@ class _MultiplayerGameState extends State<MultiplayerGame> {
     if (uid == null) return;
 
     final isCorrect = index == question['correctIndex'];
-    int points = 0;
-
-    if (isCorrect) {
-      points = _calculatePoints(question['difficulty'], timeLeft);
-    }
+    int points =
+        isCorrect ? _calculatePoints(question['difficulty'], timeLeft) : 0;
 
     await _firestore.collection('lobbies').doc(widget.lobbyId).update({
       'players.$uid.answered': true,
       'players.$uid.lastAnswer': index,
-      'players.$uid.answeredAt': FieldValue.serverTimestamp(),
       if (points > 0) 'players.$uid.score': FieldValue.increment(points),
     });
 
@@ -463,140 +369,102 @@ class _MultiplayerGameState extends State<MultiplayerGame> {
   }
 
   int _calculatePoints(String? difficulty, int timeLeft) {
-    int base = 10;
-    if (difficulty == 'hard') base = 30;
-    if (difficulty == 'medium') base = 20;
-
-    final timeBonus = (timeLeft / 6).floor();
-    return base + timeBonus.clamp(0, 10);
+    int base = difficulty == 'hard'
+        ? 30
+        : difficulty == 'medium'
+            ? 20
+            : 10;
+    return base + (timeLeft / 6).floor().clamp(0, 10);
   }
 
-  void _showResults(Map<String, dynamic> data) async {
-    final players = data['players'] as Map<String, dynamic>? ?? {};
-    final myScore = (players[_myUid]?['score'] as num?)?.toInt() ?? 0;
+  void _showResults(Map<String, dynamic> data) {
+    final players = data['players'] as Map<String, dynamic>;
+    final results = players.values.toList()
+      ..sort((a, b) => (b['score'] ?? 0).compareTo(a['score'] ?? 0));
 
-    int maxScore = 0;
-    String? winnerName;
-    bool isDraw = false;
-    List<Map<String, dynamic>> playerResults = [];
-
-    for (final entry in players.entries) {
-      final playerData = entry.value as Map<String, dynamic>;
-      final score = (playerData['score'] as num?)?.toInt() ?? 0;
-      final name = playerData['name'] ?? 'Neznan';
-
-      playerResults.add({
-        'name': name,
-        'score': score,
-      });
-
-      if (score > maxScore) {
-        maxScore = score;
-        winnerName = name;
-        isDraw = false;
-      } else if (score == maxScore &&
-          winnerName != null &&
-          name != winnerName) {
-        isDraw = true;
-      }
-    }
-
-    final iWon = !isDraw &&
-        winnerName != null &&
-        playerResults.firstWhere((p) => p['name'] == winnerName,
-                orElse: () => playerResults.first)['name'] ==
-            playerResults.firstWhere(
-                (p) => p['name'] == (players[_myUid]?['name'] ?? 'Jaz'),
-                orElse: () => playerResults.first)['name'];
-
-    try {
-      await FirestoreService.saveMultiplayerGameResult(
-        lobbyId: widget.lobbyId,
-        yourScore: myScore,
-        opponentScore: maxScore,
-        won: iWon,
-      );
-    } catch (e) {
-      print('Error saving multiplayer result: $e');
-    }
-
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) => AlertDialog(
-        title: Text(isDraw
-            ? "🤝 IZENAČENO!"
-            : iWon
-                ? "🎉 ZMAGAL SI! 🎉"
-                : "Konec igre"),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            for (final player in playerResults)
-              Padding(
-                padding: const EdgeInsets.symmetric(vertical: 4),
-                child: Row(
-                  children: [
-                    Text("${player['name']}: ",
-                        style: const TextStyle(fontSize: 16)),
-                    Text("${player['score']} točk",
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: player['name'] == winnerName
-                              ? FontWeight.bold
-                              : null,
-                          color: player['name'] == winnerName
-                              ? Colors.green
-                              : null,
-                        )),
-                  ],
-                ),
+    Navigator.of(context).pushReplacement(
+      MaterialPageRoute(
+        builder: (_) => Scaffold(
+          backgroundColor: bgColor,
+          body: Center(
+            child: Container(
+              width: 320,
+              padding: const EdgeInsets.all(24),
+              decoration: BoxDecoration(
+                color: cardColor,
+                borderRadius: BorderRadius.circular(20),
               ),
-            const SizedBox(height: 16),
-            if (isDraw)
-              const Text("Igra se je končala z izenačenjem!",
-                  style: TextStyle(fontSize: 16, color: Colors.blue)),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () {
-              Navigator.pop(context);
-              Navigator.pop(context);
-            },
-            child: const Text("Nazaj na lobbyje"),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    results.first['score'] == players[_myUid]?['score']
+                        ? "YOU WIN 🎉"
+                        : "YOU LOSE",
+                    style: const TextStyle(
+                      fontSize: 32,
+                      fontWeight: FontWeight.bold,
+                      color: accentColor,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 24),
+
+                  // Players + scores
+                  for (final p in results)
+                    Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 6),
+                      child: Text(
+                        "${p['name']}\n${p['score']} pts",
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 16,
+                        ),
+                      ),
+                    ),
+
+                  const SizedBox(height: 32),
+
+                  ElevatedButton(
+                    onPressed: () {
+                      Navigator.of(context, rootNavigator: true)
+                          .pushAndRemoveUntil(
+                        MaterialPageRoute(builder: (_) => const MainMenu()),
+                        (route) => false,
+                      );
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: accentColor,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 32,
+                        vertical: 14,
+                      ),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                    ),
+                    child: const Text(
+                      "Back",
+                      style: TextStyle(fontSize: 16),
+                    ),
+                  ),
+                ],
+              ),
+            ),
           ),
-        ],
+        ),
       ),
     );
   }
 
-  Widget _buildLoadingScreen(String text) {
+  Widget _loading(String text) {
     return Scaffold(
+      backgroundColor: bgColor,
       body: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            const CircularProgressIndicator(),
-            const SizedBox(height: 24),
-            Text(text, style: const TextStyle(fontSize: 18)),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildErrorScreen(String msg) {
-    return Scaffold(
-      body: Center(
-        child: Padding(
-          padding: const EdgeInsets.all(32),
-          child: Text(
-            msg,
-            style: const TextStyle(fontSize: 20, color: Colors.red),
-            textAlign: TextAlign.center,
-          ),
+        child: Text(
+          text,
+          style: const TextStyle(color: Colors.white70, fontSize: 18),
         ),
       ),
     );

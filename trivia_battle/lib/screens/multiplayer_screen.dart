@@ -16,6 +16,10 @@ class _MultiplayerScreenState extends State<MultiplayerScreen> {
   int _selectedPlayers = 4;
   bool _isLoading = false;
 
+  static const Color bgDark = Color(0xFF0E0E11);
+  static const Color bgCard = Color(0xFF1A1A22);
+  static const Color accent = Color(0xFF7C7CFF);
+
   @override
   void dispose() {
     _lobbyNameController.dispose();
@@ -25,91 +29,156 @@ class _MultiplayerScreenState extends State<MultiplayerScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: bgDark,
       appBar: AppBar(
-        title: const Text('Multiplayer'),
-        backgroundColor: Colors.blue.shade700,
+        backgroundColor: bgDark,
+        elevation: 0,
+        leading: IconButton(
+          icon: const Icon(
+            Icons.arrow_back_ios_new_rounded,
+            color: Colors.white70,
+            size: 20,
+          ),
+          onPressed: () => Navigator.pop(context),
+        ),
+        title: const Text(
+          'Multiplayer',
+          style: TextStyle(
+            color: accent,
+            fontWeight: FontWeight.w600,
+            letterSpacing: 1,
+          ),
+        ),
       ),
       body: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
           children: [
-            Card(
-              elevation: 3,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  children: [
-                    TextField(
-                      controller: _lobbyNameController,
-                      decoration: const InputDecoration(
-                        labelText: 'Ime Lobbyja',
-                        border: OutlineInputBorder(),
-                        prefixIcon: Icon(Icons.videogame_asset),
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text(
-                          'Število igralcev:',
-                          style: TextStyle(
-                              fontSize: 16, fontWeight: FontWeight.w500),
-                        ),
-                        const SizedBox(height: 8),
-                        Wrap(
-                          spacing: 8,
-                          runSpacing: 8,
-                          children: [2, 3, 4, 5, 6, 7, 8].map((players) {
-                            return ChoiceChip(
-                              label: Text('$players'),
-                              selected: _selectedPlayers == players,
-                              onSelected: (selected) {
-                                setState(() {
-                                  _selectedPlayers = players;
-                                });
-                              },
-                              selectedColor: Colors.blue.shade200,
-                              labelStyle: TextStyle(
-                                color: _selectedPlayers == players
-                                    ? Colors.white
-                                    : Colors.black,
-                              ),
-                            );
-                          }).toList(),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 16),
-                    ElevatedButton(
-                      onPressed: _createLobby,
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.green,
-                        foregroundColor: Colors.white,
-                        minimumSize: const Size(double.infinity, 50),
-                      ),
-                      child: const Text('Ustvari Lobby'),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-            const SizedBox(height: 20),
-            const Row(
-              children: [
-                Text(
-                  'Vsi Lobbyji:',
-                  style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
+            /// CREATE LOBBY CARD
+            Container(
+              padding: const EdgeInsets.all(18),
+              decoration: BoxDecoration(
+                color: bgCard,
+                borderRadius: BorderRadius.circular(18),
+                boxShadow: [
+                  BoxShadow(
+                    color: accent.withOpacity(0.15),
+                    blurRadius: 12,
                   ),
-                ),
-              ],
+                ],
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Create Lobby',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 18,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const SizedBox(height: 14),
+
+                  /// LOBBY NAME
+                  TextField(
+                    controller: _lobbyNameController,
+                    style: const TextStyle(color: Colors.white),
+                    decoration: InputDecoration(
+                      hintText: 'Lobby name',
+                      hintStyle: const TextStyle(color: Colors.white38),
+                      prefixIcon:
+                          const Icon(Icons.videogame_asset, color: accent),
+                      filled: true,
+                      fillColor: bgDark,
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(14),
+                        borderSide: BorderSide.none,
+                      ),
+                    ),
+                  ),
+
+                  const SizedBox(height: 16),
+
+                  /// PLAYER COUNT
+                  const Text(
+                    'Max players',
+                    style: TextStyle(color: Colors.white70),
+                  ),
+                  const SizedBox(height: 10),
+
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: [2, 3, 4, 5, 6, 7, 8].map((players) {
+                      final selected = _selectedPlayers == players;
+                      return ChoiceChip(
+                        label: Text('$players'),
+                        selected: selected,
+                        onSelected: (_) {
+                          setState(() {
+                            _selectedPlayers = players;
+                          });
+                        },
+                        selectedColor: accent,
+                        backgroundColor: bgDark,
+                        labelStyle: TextStyle(
+                          color: selected ? Colors.white : Colors.white70,
+                          fontWeight:
+                              selected ? FontWeight.bold : FontWeight.normal,
+                        ),
+                      );
+                    }).toList(),
+                  ),
+
+                  const SizedBox(height: 18),
+
+                  /// CREATE BUTTON
+                  SizedBox(
+                    width: double.infinity,
+                    height: 46,
+                    child: ElevatedButton(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: accent,
+                        foregroundColor: Colors.white,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                      ),
+                      onPressed: _isLoading ? null : _createLobby,
+                      child: _isLoading
+                          ? const SizedBox(
+                              width: 18,
+                              height: 18,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: Colors.white,
+                              ),
+                            )
+                          : const Text('Create Lobby'),
+                    ),
+                  ),
+                ],
+              ),
             ),
-            const SizedBox(height: 8),
+
+            const SizedBox(height: 24),
+
+            /// LOBBIES TITLE
+            const Align(
+              alignment: Alignment.centerLeft,
+              child: Text(
+                'Available Lobbies',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 18,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+            const SizedBox(height: 12),
+
+            /// LOBBY LIST
             Expanded(
               child: StreamBuilder<QuerySnapshot>(
                 stream: FirebaseFirestore.instance
@@ -117,35 +186,22 @@ class _MultiplayerScreenState extends State<MultiplayerScreen> {
                     .snapshots(),
                 builder: (context, snapshot) {
                   if (snapshot.connectionState == ConnectionState.waiting) {
-                    return const Center(child: CircularProgressIndicator());
+                    return const Center(
+                      child: CircularProgressIndicator(color: accent),
+                    );
                   }
 
                   if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-                    return Center(
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(
-                            Icons.group_off,
-                            size: 50,
-                            color: Colors.grey.shade400,
-                          ),
-                          const SizedBox(height: 10),
-                          const Text('Ni lobbyjev'),
-                          const SizedBox(height: 5),
-                          Text(
-                            'Ustvari prvega!',
-                            style: TextStyle(color: Colors.grey.shade600),
-                          ),
-                        ],
+                    return const Center(
+                      child: Text(
+                        'No lobbies available',
+                        style: TextStyle(color: Colors.white54),
                       ),
                     );
                   }
 
-                  final lobbies = snapshot.data!.docs;
-
-                  final waitingLobbies = lobbies.where((lobby) {
-                    final data = lobby.data() as Map<String, dynamic>;
+                  final waitingLobbies = snapshot.data!.docs.where((doc) {
+                    final data = doc.data() as Map<String, dynamic>;
                     return data['status'] == 'waiting';
                   }).toList();
 
@@ -154,71 +210,96 @@ class _MultiplayerScreenState extends State<MultiplayerScreen> {
                     itemBuilder: (context, index) {
                       final lobby = waitingLobbies[index];
                       final data = lobby.data() as Map<String, dynamic>;
+
                       final lobbyId = lobby.id;
-                      final lobbyName = data['name'] ?? 'Lobby';
-                      final hostName = data['hostName'] ?? 'Host';
+                      final isJoining = _joiningLobbies.contains(lobbyId);
+
                       final currentPlayers = data['currentPlayers'] ?? 0;
                       final maxPlayers = data['maxPlayers'] ?? 4;
-                      final isJoining = _joiningLobbies.contains(lobbyId);
                       final isFull = currentPlayers >= maxPlayers;
 
-                      return Card(
-                        margin: const EdgeInsets.only(bottom: 8),
-                        child: ListTile(
-                          leading: CircleAvatar(
-                            backgroundColor: Colors.blue.shade100,
-                            child: const Icon(Icons.group, color: Colors.blue),
-                          ),
-                          title: Text(lobbyName),
-                          subtitle: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text('Host: $hostName'),
-                              const SizedBox(height: 4),
-                              Row(
+                      return Container(
+                        margin: const EdgeInsets.only(bottom: 12),
+                        padding: const EdgeInsets.all(14),
+                        decoration: BoxDecoration(
+                          color: bgCard,
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                        child: Row(
+                          children: [
+                            const Icon(Icons.groups_rounded,
+                                color: accent, size: 30),
+                            const SizedBox(width: 12),
+
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  Icon(
-                                    Icons.person,
-                                    size: 16,
-                                    color: isFull ? Colors.red : Colors.green,
-                                  ),
-                                  const SizedBox(width: 4),
                                   Text(
-                                    '$currentPlayers/$maxPlayers igralcev',
+                                    data['name'] ?? 'Lobby',
+                                    style: const TextStyle(
+                                      color: Colors.white,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    'Host: ${data['hostName'] ?? 'Host'}',
+                                    style: const TextStyle(
+                                      color: Colors.white54,
+                                      fontSize: 12,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    '$currentPlayers / $maxPlayers players',
                                     style: TextStyle(
-                                      color: isFull ? Colors.red : Colors.green,
+                                      color: isFull
+                                          ? Colors.redAccent
+                                          : Colors.greenAccent,
+                                      fontSize: 12,
                                     ),
                                   ),
                                 ],
                               ),
-                            ],
-                          ),
-                          trailing: isFull
-                              ? Container(
-                                  padding: const EdgeInsets.symmetric(
-                                      horizontal: 12, vertical: 6),
-                                  decoration: BoxDecoration(
-                                    color: Colors.red.shade50,
-                                    borderRadius: BorderRadius.circular(20),
-                                  ),
-                                  child: const Text(
-                                    'Polno',
-                                    style: TextStyle(color: Colors.red),
-                                  ),
-                                )
-                              : ElevatedButton(
-                                  onPressed: isJoining
-                                      ? null
-                                      : () => _joinLobby(lobbyId),
-                                  child: isJoining
-                                      ? const SizedBox(
-                                          width: 16,
-                                          height: 16,
-                                          child: CircularProgressIndicator(
-                                              strokeWidth: 2),
-                                        )
-                                      : const Text('Pridruži se'),
-                                ),
+                            ),
+
+                            /// JOIN BUTTON
+                            isFull
+                                ? const Text(
+                                    'FULL',
+                                    style: TextStyle(
+                                      color: Colors.redAccent,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  )
+                                : ElevatedButton(
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: accent,
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(12),
+                                      ),
+                                    ),
+                                    onPressed: isJoining
+                                        ? null
+                                        : () => _joinLobby(lobbyId),
+                                    child: isJoining
+                                        ? const SizedBox(
+                                            width: 14,
+                                            height: 14,
+                                            child: CircularProgressIndicator(
+                                              strokeWidth: 2,
+                                              color: Colors.white,
+                                            ),
+                                          )
+                                        : const Text(
+                                            'Join',
+                                            style: TextStyle(
+                                                color: Color.fromARGB(
+                                                    255, 237, 237, 240)),
+                                          ),
+                                  )
+                          ],
                         ),
                       );
                     },
@@ -233,79 +314,51 @@ class _MultiplayerScreenState extends State<MultiplayerScreen> {
   }
 
   Future<void> _createLobby() async {
-    final lobbyName = _lobbyNameController.text.trim();
-    if (lobbyName.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Vnesite ime lobbyja')),
-      );
-      return;
-    }
-
+    final name = _lobbyNameController.text.trim();
     final user = FirebaseAuth.instance.currentUser;
-    if (user == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Prijavite se')),
-      );
-      return;
-    }
 
-    setState(() {
-      _isLoading = true;
-    });
+    if (name.isEmpty || user == null) return;
+
+    setState(() => _isLoading = true);
 
     try {
       final lobbyRef = FirebaseFirestore.instance.collection('lobbies').doc();
 
-      final lobbyData = {
+      await lobbyRef.set({
         'id': lobbyRef.id,
-        'name': lobbyName,
+        'name': name,
         'hostId': user.uid,
-        'hostName': user.displayName ?? 'Igralec',
+        'hostName': user.displayName ?? 'Player',
         'maxPlayers': _selectedPlayers,
         'currentPlayers': 1,
         'status': 'waiting',
         'players': {
           user.uid: {
             'uid': user.uid,
-            'name': user.displayName ?? 'Igralec',
+            'name': user.displayName ?? 'Player',
             'score': 0,
             'ready': true,
             'joinedAt': FieldValue.serverTimestamp(),
           }
         },
         'createdAt': FieldValue.serverTimestamp(),
-        'questions': [],
         'gameStarted': false,
         'currentQuestion': 0,
-      };
-
-      await lobbyRef.set(lobbyData);
-
-      _lobbyNameController.clear();
+      });
 
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(
-          builder: (context) => LobbyScreen(lobbyId: lobbyRef.id),
+          builder: (_) => LobbyScreen(lobbyId: lobbyRef.id),
         ),
       );
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Napaka: $e')),
-      );
     } finally {
-      if (mounted) {
-        setState(() {
-          _isLoading = false;
-        });
-      }
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 
   Future<void> _joinLobby(String lobbyId) async {
-    setState(() {
-      _joiningLobbies.add(lobbyId);
-    });
+    setState(() => _joiningLobbies.add(lobbyId));
 
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return;
@@ -314,30 +367,11 @@ class _MultiplayerScreenState extends State<MultiplayerScreen> {
       final lobbyRef =
           FirebaseFirestore.instance.collection('lobbies').doc(lobbyId);
 
-      final lobbyDoc = await lobbyRef.get();
-      if (!lobbyDoc.exists) {
-        throw Exception('Lobby ne obstaja');
-      }
-
-      final data = lobbyDoc.data()!;
-      final currentPlayers = data['currentPlayers'] ?? 0;
-      final maxPlayers = data['maxPlayers'] ?? 4;
-      final status = data['status'] ?? 'waiting';
-
-      if (currentPlayers >= maxPlayers) {
-        throw Exception('Lobby je poln');
-      }
-
-      if (status != 'waiting') {
-        throw Exception('Igra je že v teku');
-      }
-
-      // Dodaj igralca
       await lobbyRef.update({
         'currentPlayers': FieldValue.increment(1),
         'players.${user.uid}': {
           'uid': user.uid,
-          'name': user.displayName ?? 'Igralec',
+          'name': user.displayName ?? 'Player',
           'score': 0,
           'ready': false,
           'joinedAt': FieldValue.serverTimestamp(),
@@ -347,17 +381,11 @@ class _MultiplayerScreenState extends State<MultiplayerScreen> {
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(
-          builder: (context) => LobbyScreen(lobbyId: lobbyId),
+          builder: (_) => LobbyScreen(lobbyId: lobbyId),
         ),
       );
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Napaka: $e')),
-      );
     } finally {
-      setState(() {
-        _joiningLobbies.remove(lobbyId);
-      });
+      setState(() => _joiningLobbies.remove(lobbyId));
     }
   }
 }

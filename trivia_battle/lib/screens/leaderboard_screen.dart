@@ -5,12 +5,34 @@ import '../services/firestore_service.dart';
 class LeaderboardScreen extends StatelessWidget {
   const LeaderboardScreen({super.key});
 
+  final Color bg1 = const Color(0xFF0E0E11);
+  final Color bg2 = const Color(0xFF1A1A22);
+  static const Color accent = Color(0xFF7C7CFF);
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: bg1,
       appBar: AppBar(
-        title: const Text('Lestvica'),
-        backgroundColor: Colors.blue.shade700,
+        backgroundColor: bg2,
+        elevation: 0,
+        leading: IconButton(
+          icon: const Icon(
+            Icons.arrow_back_ios_new_rounded,
+            color: Colors.white70,
+            size: 20,
+          ),
+          tooltip: 'Back',
+          onPressed: () => Navigator.pop(context),
+        ),
+        title: const Text(
+          'Leaderboard',
+          style: TextStyle(
+            fontSize: 22,
+            fontWeight: FontWeight.w700,
+            letterSpacing: 1.2,
+            color: accent,
+          ),
+        ),
         actions: [
           IconButton(
             icon: const Icon(Icons.refresh, size: 22),
@@ -37,9 +59,9 @@ class LeaderboardScreen extends StatelessWidget {
                     const Icon(Icons.error, color: Colors.red, size: 40),
                     const SizedBox(height: 12),
                     Text(
-                      'Napaka: ${snapshot.error}',
+                      'Error: ${snapshot.error}',
                       textAlign: TextAlign.center,
-                      style: const TextStyle(fontSize: 14),
+                      style: const TextStyle(fontSize: 14, color: Colors.white),
                     ),
                   ],
                 ),
@@ -56,16 +78,16 @@ class LeaderboardScreen extends StatelessWidget {
                       size: 60, color: Colors.grey.shade400),
                   const SizedBox(height: 16),
                   const Text(
-                    'Še ni igralcev na lestvici',
+                    'No players on leaderboard yet',
                     style: TextStyle(
                       fontSize: 18,
                       fontWeight: FontWeight.bold,
-                      color: Colors.grey,
+                      color: Colors.white,
                     ),
                   ),
                   const SizedBox(height: 8),
                   const Text(
-                    'Igrajte za pojavitev na lestvici',
+                    'Play games to appear here',
                     style: TextStyle(fontSize: 14, color: Colors.grey),
                   ),
                 ],
@@ -78,12 +100,14 @@ class LeaderboardScreen extends StatelessWidget {
 
           return Column(
             children: [
-              // Top 3 igralci
+              // TOP 3
               Container(
-                height: 160,
+                height: 170,
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                 decoration: BoxDecoration(
                   gradient: LinearGradient(
-                    colors: [Colors.blue.shade700, Colors.purple.shade700],
+                    colors: [bg2, const Color(0xFF2A2A36)],
                     begin: Alignment.topCenter,
                     end: Alignment.bottomCenter,
                   ),
@@ -106,100 +130,105 @@ class LeaderboardScreen extends StatelessWidget {
                 ),
               ),
 
-              // Seznam ostalih
+              // LIST
               Expanded(
-                child: ListView.builder(
-                  padding: const EdgeInsets.all(8),
-                  itemCount: docs.length,
-                  itemBuilder: (context, index) {
-                    final doc = docs[index];
-                    final data = doc.data() as Map<String, dynamic>;
-                    final isCurrentUser = doc.id == currentUser;
+                child: Container(
+                  color: bg1,
+                  child: ListView.builder(
+                    padding: const EdgeInsets.all(8),
+                    itemCount: docs.length,
+                    itemBuilder: (context, index) {
+                      final doc = docs[index];
+                      final data = doc.data() as Map<String, dynamic>;
+                      final isCurrentUser = doc.id == currentUser;
 
-                    return Container(
-                      margin: const EdgeInsets.symmetric(
-                          horizontal: 6, vertical: 3),
-                      child: Card(
-                        elevation: 1,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                        color: isCurrentUser ? Colors.blue.shade50 : null,
-                        child: ListTile(
-                          contentPadding: const EdgeInsets.symmetric(
-                            horizontal: 12,
-                            vertical: 6,
+                      return Container(
+                        margin: const EdgeInsets.symmetric(
+                            horizontal: 6, vertical: 3),
+                        child: Card(
+                          elevation: 1,
+                          color:
+                              isCurrentUser ? Colors.white12 : Colors.white10,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
                           ),
-                          leading: Container(
-                            width: 30,
-                            height: 30,
-                            alignment: Alignment.center,
-                            decoration: BoxDecoration(
-                              color: isCurrentUser
-                                  ? Colors.blue.shade600
-                                  : Colors.grey.shade300,
-                              borderRadius: BorderRadius.circular(15),
+                          child: ListTile(
+                            contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 6,
                             ),
-                            child: Text(
-                              '${index + 1}',
-                              style: TextStyle(
-                                fontSize: 14,
-                                fontWeight: FontWeight.bold,
-                                color:
-                                    isCurrentUser ? Colors.white : Colors.black,
+                            leading: Container(
+                              width: 34,
+                              height: 34,
+                              alignment: Alignment.center,
+                              decoration: BoxDecoration(
+                                color: isCurrentUser
+                                    ? accent.withOpacity(0.7)
+                                    : Colors.grey.shade800,
+                                borderRadius: BorderRadius.circular(14),
                               ),
-                            ),
-                          ),
-                          title: Text(
-                            data['username'] ?? 'Anonimni',
-                            style: TextStyle(
-                              fontSize: 15,
-                              fontWeight: FontWeight.w600,
-                              color: isCurrentUser
-                                  ? Colors.blue.shade800
-                                  : Colors.black,
-                            ),
-                          ),
-                          subtitle: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              const SizedBox(height: 2),
-                              Text(
-                                '${data['totalGames'] ?? 0} iger',
-                                style: const TextStyle(fontSize: 11),
-                              ),
-                              if (data['averageAccuracy'] != null)
-                                Text(
-                                  'Natančnost: ${(data['averageAccuracy'] as double).toStringAsFixed(1)}%',
-                                  style: const TextStyle(fontSize: 11),
-                                ),
-                            ],
-                          ),
-                          trailing: Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            crossAxisAlignment: CrossAxisAlignment.end,
-                            children: [
-                              Text(
-                                '${data['points'] ?? 0}',
-                                style: const TextStyle(
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 16,
-                                  color: Colors.green,
-                                ),
-                              ),
-                              Text(
-                                'točk',
+                              child: Text(
+                                '${index + 1}',
                                 style: TextStyle(
-                                  fontSize: 9,
-                                  color: Colors.grey.shade600,
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.bold,
+                                  color: isCurrentUser
+                                      ? Colors.white
+                                      : Colors.white70,
                                 ),
                               ),
-                            ],
+                            ),
+                            title: Text(
+                              data['username'] ?? 'Anonymous',
+                              style: TextStyle(
+                                fontSize: 15,
+                                fontWeight: FontWeight.w600,
+                                color: Colors.white,
+                              ),
+                            ),
+                            subtitle: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const SizedBox(height: 2),
+                                Text(
+                                  '${data['totalGames'] ?? 0} games',
+                                  style: const TextStyle(
+                                      fontSize: 11, color: Colors.white60),
+                                ),
+                                if (data['averageAccuracy'] != null)
+                                  Text(
+                                    'Accuracy: ${(data['averageAccuracy'] as double).toStringAsFixed(1)}%',
+                                    style: const TextStyle(
+                                        fontSize: 11, color: Colors.white60),
+                                  ),
+                              ],
+                            ),
+                            trailing: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              crossAxisAlignment: CrossAxisAlignment.end,
+                              children: [
+                                Text(
+                                  '${data['points'] ?? 0}',
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 16,
+                                    color: Colors.green,
+                                  ),
+                                ),
+                                Text(
+                                  'points',
+                                  style: TextStyle(
+                                    fontSize: 9,
+                                    color: Colors.white60,
+                                  ),
+                                ),
+                              ],
+                            ),
                           ),
                         ),
-                      ),
-                    );
-                  },
+                      );
+                    },
+                  ),
                 ),
               ),
             ],
@@ -231,50 +260,46 @@ class _TopPlayerCard extends StatelessWidget {
     return Column(
       mainAxisAlignment: MainAxisAlignment.end,
       children: [
+        // 👇 še manjši krogi
         Container(
-          width: isFirst ? 70 : 56,
-          height: isFirst ? 70 : 56,
+          width: isFirst ? 60 : 52,
+          height: isFirst ? 60 : 52,
           decoration: BoxDecoration(
-            color: Colors.white,
+            color: Colors.white.withOpacity(0.95),
             shape: BoxShape.circle,
             border: Border.all(
               color: _getRankColor(rank),
-              width: isFirst ? 4 : 3,
+              width: isFirst ? 2.5 : 2,
             ),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withOpacity(0.1),
+                color: Colors.black.withOpacity(0.2),
                 blurRadius: 6,
                 offset: const Offset(0, 3),
               ),
             ],
           ),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Text(
-                '#$rank',
-                style: TextStyle(
-                  fontSize: isFirst ? 14 : 12,
-                  fontWeight: FontWeight.bold,
-                  color: _getRankColor(rank),
-                ),
+          child: Center(
+            child: Text(
+              '#$rank',
+              style: TextStyle(
+                fontSize: isFirst ? 14 : 13,
+                fontWeight: FontWeight.bold,
+                color: _getRankColor(rank),
               ),
-              const SizedBox(height: 2),
-              Icon(
-                Icons.person,
-                size: isFirst ? 26 : 20,
-                color: Colors.blue.shade700,
-              ),
-            ],
+            ),
           ),
         ),
-        const SizedBox(height: 8),
+        const SizedBox(height: 6),
+
+        // 👇 še manjša info kartica
         Container(
-          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+          width: isFirst ? 95 : 86,
+          padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 5),
           decoration: BoxDecoration(
-            color: Colors.white.withOpacity(0.9),
-            borderRadius: BorderRadius.circular(8),
+            color: Colors.white.withOpacity(0.10),
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: Colors.white12),
           ),
           child: Column(
             children: [
@@ -283,31 +308,33 @@ class _TopPlayerCard extends StatelessWidget {
                     ? '${username.substring(0, 8)}...'
                     : username,
                 style: const TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.white,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                '$points pts',
+                style: const TextStyle(
                   fontSize: 12,
                   fontWeight: FontWeight.bold,
-                  color: Colors.black87,
+                  color: Color(0xFF7C7CFF),
                 ),
               ),
               const SizedBox(height: 2),
               Text(
-                '$points',
-                style: const TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.amber,
-                ),
-              ),
-              Text(
-                '$games igre',
-                style: const TextStyle(
-                  fontSize: 10,
-                  color: Colors.grey,
+                '$games games',
+                style: TextStyle(
+                  fontSize: 9,
+                  color: Colors.grey.shade400,
                 ),
               ),
             ],
           ),
         ),
-        const SizedBox(height: 12),
+
+        const SizedBox(height: 6),
       ],
     );
   }
@@ -315,11 +342,11 @@ class _TopPlayerCard extends StatelessWidget {
   Color _getRankColor(int rank) {
     switch (rank) {
       case 1:
-        return Colors.amber;
+        return const Color(0xFFFFD700);
       case 2:
-        return Colors.grey.shade400;
+        return const Color(0xFFC0C0C0);
       case 3:
-        return Colors.orange.shade600;
+        return const Color(0xFFCD7F32);
       default:
         return Colors.white;
     }
